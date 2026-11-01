@@ -222,6 +222,8 @@ jobs:
           Copy-Item -Path package.json -Destination staging-release\package.json
           Copy-Item -Path package-lock.json -Destination staging-release\package-lock.json
           Copy-Item -Path scripts\Prepare-GoalAppOfflineStage.ps1 -Destination staging-release\Prepare-GoalAppOfflineStage.ps1
+          Copy-Item -Path scripts\Inspect-OneMcpCutoverReadiness.ps1 -Destination staging-release\Inspect-OneMcpCutoverReadiness.ps1
+          Copy-Item -Path scripts\Inspect-OneMcpStartupReadOnly.ps1 -Destination staging-release\Inspect-OneMcpStartupReadOnly.ps1
           @'
           GOAL APP WINDOWS ISOLATED SOURCE BUNDLE
           NO CREDENTIALS. NO OWNER TOKEN. NO INSTALLED SERVICE.
@@ -338,6 +340,11 @@ jobs:
             throw "Offline bundle stage verification did not stay inactive"
           }
           if (!(Test-Path (Join-Path $destination "dist/cli.js"))) { throw "Stage executable missing" }
+          foreach ($name in @("Inspect-OneMcpCutoverReadiness.ps1", "Inspect-OneMcpStartupReadOnly.ps1")) {
+            if (!(Test-Path (Join-Path $destination $name))) {
+              throw "Required read-only inspection script missing from sealed bundle"
+            }
+          }
           $prov = Get-Content (Join-Path $destination "STAGING_PROVENANCE.txt") -Raw
           if ($prov -notmatch '(?m)^reviewOnly=true\r?$' -or
               $prov -notmatch "(?m)^sourcePrHeadSha=${{ github.event.pull_request.head.sha }}\r?$" -or
