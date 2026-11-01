@@ -153,6 +153,9 @@ async function applyStartupProjectSelection(ctx: ToolContext, flags: Record<stri
 }
 
 async function cmdServeStdio(flags: Record<string, string | boolean>): Promise<void> {
+  if (flags["isolated-state-dir"] !== undefined && isControlEnabled()) {
+    throw new Error("ISOLATED_STAGE_DESKTOP_CONTROL_FORBIDDEN");
+  }
   const workspace = typeof flags.workspace === "string" ? flags.workspace : process.cwd();
   const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
   const ctx = await buildToolContext(workspace, stateDir);
