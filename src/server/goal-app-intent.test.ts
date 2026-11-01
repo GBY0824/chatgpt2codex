@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { GoalAppCommandError, goalAppCommand, type VerifiedAppCaller } from "./goal-app-intent.js";
+import { GoalAppCommandError, goalAppCommand, withGoalIntentClaim, type VerifiedAppCaller } from "./goal-app-intent.js";
 
 const auth: VerifiedAppCaller = {
   clientId: "owner-approved-client", scopes: ["chatgpt2codex", "chatgpt2codex.goal"],
@@ -50,6 +50,49 @@ describe("OAuth-scoped APP intent — NOT ChatGPT provider turn or research auth
     await call(d, "OFF");
     expect((await call(d, "ON", 0)).code).toBe("APP_GOAL_REVISION_STALE");
   });
+  it("releases an unchanged synthetic APP intent claim after a normal transaction", async () => {
+    const d = await dir();
+    const marker = path.join(d, "synthetic-intent.lock");
+    await withGoalIntentClaim(marker, async () => {
+      expect((await readFile(marker, "utf8")).includes('"nonce":')).toBe(true);
+    });
+    await expect(readFile(marker, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("refuses to unlink an APP intent claim modified in place by another writer", async () => {
+    const d = await dir();
+    const marker = path.join(d, "synthetic-intent.lock");
+    const foreign = '{"schema":1,"nonce":"synthetic-foreign-owner"}';
+    await expect(withGoalIntentClaim(marker, async () => {
+      // Same inode, changed nonce: stat-only identity is not sufficient.
+      await writeFile(marker, foreign, "utf8");
+    })).rejects.toMatchObject({ code: "APP_GOAL_LOCK_OWNERSHIP_LOST" });
+    expect(await readFile(marker, "utf8")).toBe(foreign);
+    await expect(withGoalIntentClaim(marker, async () => {
+      throw new Error("must-not-execute");
+    })).rejects.toMatchObject({ code: "APP_GOAL_LOCK_BUSY_NO_REPLAY" });
+    expect(await readFile(marker, "utf8")).toBe(foreign);
+  });
+
+  it("refuses to unlink a foreign APP intent claim replacing the locked inode", async () => {
+    const d = await dir();
+    const marker = path.join(d, "synthetic-intent.lock");
+    const foreign = "synthetic-replaced-marker-not-owner";
+    await expect(withGoalIntentClaim(marker, async () => {
+      await rm(marker);
+      await writeFile(marker, foreign, "utf8");
+    })).rejects.toMatchObject({ code: "APP_GOAL_LOCK_OWNERSHIP_LOST" });
+    expect(await readFile(marker, "utf8")).toBe(foreign);
+  });
+
+  it("fails closed on a missing claim instead of silently returning success", async () => {
+    const d = await dir();
+    const marker = path.join(d, "synthetic-intent.lock");
+    await expect(withGoalIntentClaim(marker, async () => {
+      await rm(marker);
+    })).rejects.toMatchObject({ code: "APP_GOAL_LOCK_OWNERSHIP_LOST" });
+  });
+
   it("fails closed on corrupt state and a held lock", async () => {
     const d = await dir();
     const f = path.join(d, "goal-app-command-intent.json");
