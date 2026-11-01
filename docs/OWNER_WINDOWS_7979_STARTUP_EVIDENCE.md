@@ -1,5 +1,72 @@
 # Owner Windows 7979 startup — read-only observed evidence (2026-11-02 KST)
 
+## 2026-11-02 KST — confirmed deployed watchdog/source mismatch (read-only)
+
+Fresh direct owner-Windows `ChatGPT To Codex` bridge inspection,
+under a tests-only lease; **NO process/task/Startup/OAuth/installation
+changes**:
+
+- GitHub research file
+  `GBY0824/freqtrade-mcp-research` `main`
+  `tools/Watch-ChatGPTToCodexMcp.ps1` has **Git blob SHA-1**
+  `c553fe6d740e37bb949025a7d8e41f27b3093256`
+  (read directly through the connected GitHub app).
+- The **actually installed**
+  `%LOCALAPPDATA%/ChatGPTToCodexMCP/Watch-ChatGPTToCodexMcp.ps1`
+  is present, but its local `git hash-object` **DOES NOT MATCH**
+  the above GitHub research blob. Local script is 29,747 bytes,
+  UTF-8 BOM present, **no CRLF** in its decoded content.
+  A second in-memory Git blob check with CRLF normalized still
+  did not match. The installed script has ~702 lines and PowerShell
+  parser reported **zero** syntax errors.
+- The installed script includes references to the original main
+  Tailscale task, a restart marker, local MCP and OAuth/owner-token
+  health indicators, and a mutex. Pure source-only keyword counting
+  returned **zero direct `Start-ScheduledTask`,
+  `Stop-ScheduledTask` and `Start-Process` occurrences**.
+  By contrast the GitHub research-file text contains two direct
+  `Start-ScheduledTask` calls. Some `PublicProbeOnly` and
+  `AuthProbeOnly` lexical probes did not match exact patterns
+  in the installed source. This is **static presence/absence evidence
+  only**, not a proof that indirect launcher APIs cannot restart the
+  old process. Never assert exact installed restart predicates or
+  absence of indirect execution from such text searches.
+- The companion installed `Start-FixedTailscaleMcp.ps1` is present.
+  Its Git blob fingerprint was computed locally without leaking source
+  or arguments, but no independently matched GitHub reference was
+  available. The shared WScript dispatch script and Startup CMD
+  still require independent deployed-byte/behavior audit.
+- A more extensive local syntax-tree command inventory request was
+  **blocked by the connector's network/egress approval boundary**.
+  It was **not** retried via a workaround, and no additional command
+  inventory result is claimed.
+
+**Consequence:** prior conclusions taken directly from GitHub's saved
+`Watch-ChatGPTToCodexMcp.ps1` MUST NOT be promoted to the actual
+deployed watchdog behavior. Even though `IRunningTask.EnginePID`
+independently proves the existing 7979 WScript task instance is
+associated with `ChatGPT To Codex MCP - Tailscale`, the remaining
+independent relaunch effect paths are still unknown.
+
+Candidate source-only synthetic migration gate was strengthened at
+commit `321422388f6a48c6ae19e122e63afca65bfddc84`.
+It now rejects any deployment transition without **four separately
+audited, observed-versus-reviewed identical SHA-256 artifacts**:
+deployed watchdog, main launcher, shared WScript dispatcher and
+Startup entry. Each role additionally requires a positive behavioral
+and relaunch-mode review, not just equal filenames or hashes. Tests
+use synthetic fake hashes, **not** owner hashes, and never authorize
+production cutover. Matching [CI run 41361096184](https://github.com/GBY0824/chatgpt2codex/actions/runs/41361096184)
+was in progress on initial check; verify exact final jobs before
+declaring new gates PASS.
+
+GOAL actual research execution 0; unattended normal consumer
+Project CHAT rollover 0/2. The original 7979/isolated 7987
+installations remain unchanged.
+
+---
+
+
 ## 2026-11-02 07:40 KST continuation — main task is mandatory, watchdog source remains unverified
 
 Fresh owner-PC read-only connector check: exactly **one** original
