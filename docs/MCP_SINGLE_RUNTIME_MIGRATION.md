@@ -133,3 +133,51 @@ itself and is not authority to change port 7979.
 
 Current source gate result must be taken from the **latest** Actions run for
 this review branch, not an earlier passing commit.
+
+## Process interruption and recovery journal — synthetic only
+
+The Windows CI also runs
+`node scripts/verify-synthetic-windows-crash-recovery.mjs`.
+This is an **independent process crash/restart exercise**, not a production
+installer and not a claimed physical power outage test.
+
+The script creates its own disposable temp fixture, stores an unguessable
+marker proof, refuses arbitrary installation directory arguments, and checks
+canonical placement under OS temp before child processes perform any rename.
+Each fixture contains only synthetic CLI data, a separate synthetic state,
+an immutable original backup, a candidate staged tree and a journal carrying
+original/candidate/state tree SHA-256 digests. Journal writes use an exclusive
+temporary file, flush the file with fsync and rename to journal.json.
+
+**Replayed real process exits (exit code 73):**
+
+1. Before moving the old installed tree.
+2. After old-tree retirement, *before* its journal phase update.
+3. After old-tree retirement and journal update.
+4. After candidate activation, *before* its journal phase update.
+5. After candidate activation and journal update.
+6. During recovery itself, immediately after quarantining the candidate.
+7. During recovery itself, immediately after restoring the original.
+
+A new Node process must restore the original exactly (SHA-256 file-tree digest)
+and preserve the independent state; a second recovery must be idempotent.
+Before any restore mutation, independently verify the journal, original backup,
+user state, retired tree and any installed candidate. Unexpected bytes or
+existing quarantine directories cause refusal instead of forced overwrite.
+
+**Negative cases:** corrupted backup, corrupted journal, foreign active
+installation bytes and modified protected state are all expected to fail
+closed with no recovery rename. No credential, real Windows service or
+network listener is touched in these fixtures.
+
+**Proof boundary:** a forced Node exit models a process crash. OS-cached
+directory metadata, simultaneous writers, Windows ACLs/locks, service
+configuration, storage power-loss ordering and operating system reboot are
+**not proven** by a same-host process restart. A journal recipe in a test
+script is **not** a live recovery agent. This is research toward the G4
+reversible updater, not permission to replace the user's original MCP.
+
+Evidence requires the exact GitHub Actions Windows job logs with
+`SYNTHETIC_PROCESS_CRASH_AND_JOURNAL_RECOVERY_PASS`, the final run status,
+and a matching fork commit SHA. No schedule-based monitoring, exposed public
+endpoint or production cutover is included.
