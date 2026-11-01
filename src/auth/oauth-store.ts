@@ -294,6 +294,15 @@ export class JsonOAuthStore {
     });
   }
 
+  /** Guard sensitive lifecycle actions before changing the separate owner
+   * token file. Never treats an unreadable or corrupt existing oauth.json
+   * as empty and never mutates the OAuth document. */
+  async assertReadable(): Promise<void> {
+    await this.locked(async () => {
+      await this.load();
+    });
+  }
+
   async clearAll(): Promise<void> {
     await this.locked(async () => {
       // Explicit token rotation still must not overwrite a damaged OAuth
