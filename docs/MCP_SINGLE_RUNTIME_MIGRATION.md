@@ -336,3 +336,34 @@ owner's 7979 service untouched.
 A source SHA and editable hash manifest are not code-signing: before
 real deployment, separately establish which GitHub publisher/source
 and distribution channel the owner actually trusts.
+
+## Privacy-minimal Windows startup inventory (review-only)
+
+`scripts/Inspect-OneMcpStartupReadOnly.ps1 -Port 7979` is an on-demand
+**read-only** reporter. It uses Windows TCP listener ownership and CIM
+process/service metadata; its JSON reports only booleans, executable
+**basenames**, and status codes. It never emits full process command lines,
+Windows usernames, OAuth URLs, service configuration, credentials or
+installed state. It refuses to classify a wildcard listener as
+loopback-only and marks missing/ambiguous processes as unknown.
+
+`automaticStartupMechanismIdentified` and
+`productionCutoverAuthorized` remain `false`: a PID/parent observation
+does not reveal whether Task Scheduler, Start Menu, a Windows Service,
+a plugin, a tunnel or another process owns the lifecycle. That must be
+established separately by an authorized owner-PC check before any real
+cutover. Previous remote process/service inspection was blocked by
+`APPROVAL_REQUIRED`; this script has been **authored and CI-tested,
+not run on the owner's production Windows installation**.
+
+GitHub-hosted Windows tests start a temporary loopback TCP listener, verify
+the reporting fields without reading command lines, close it and verify
+the missing-listener response, then create a wildcard listener and verify
+it is rejected as non-loopback. No production process/port is inspected
+by this CI test.
+
+The review-only Windows staging archive now includes both
+`Inspect-OneMcpCutoverReadiness.ps1` and
+`Inspect-OneMcpStartupReadOnly.ps1` under its checksum manifest.
+Their presence is checked after the offline copy. This is for a later
+explicitly owner-approved preflight, not an auto-upgrade or cutover.
