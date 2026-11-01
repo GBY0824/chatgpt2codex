@@ -1,5 +1,44 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — INVOCATION ROLE FINGERPRINT / OWNER SAFE HANDOFF
+
+A further **on-PC sanitized read-only** comparison across all seven
+same-script task actions found **7 distinct argument-mode groups**.
+**Exactly one** task's normalized post-script arguments match the
+live 7979 WScript ancestor: `ChatGPT To Codex MCP - Tailscale`,
+currently Running. The other six tasks use different arguments.
+This is a strong *invocation configuration* match, NOT proof of the
+historical task launcher or present restart/kill control. In fact the
+live WScript creation time was **2026-10-17 10:42:16 KST** while the
+Tailscale task's **LastRunTime was 2026-10-29 15:02:09**, and its
+last Task Result was nonzero `2147946720`. Do NOT equate these
+events or disable it by inference. This is recorded in
+[OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md](./OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md)
+(doc commit `d4a2fad84a10cc994a88f5f4e0323067e1504b27`).
+
+**Policy repair:** all seven action modes require explicit classification,
+but disabling every task merely because it shares a script would risk
+interfering with unrelated OSINT/Tailscale functions. Candidate source
+commit `96ec8f15f78e9ca1691da12a140b506a926d2ba5`
+now distinguishes `legacy-relauncher`, independently
+`verified-unrelated` (requires both no legacy relaunch and no shared
+OAuth writer proofs), and `unknown` (blocks). A separate synthetic
+positive case verifies that genuinely independent tasks can remain
+running; unsupported exclusions must fail closed. **Do not claim
+current source CI PASS without checking the exact SHA's Windows job.**
+[Actions 41341083967](https://github.com/GBY0824/chatgpt2codex/actions/runs/41341083967)
+was IN PROGRESS at first check.
+
+**Next required real evidence:** identify which task modes or additional
+Startup routes can actually relaunch port 7979, through a bounded,
+user-approved and sanitized read-only analysis of script behavior
+and invocation modes. Do not read/print OAuth credentials. Only
+quiesce proven legacy routes, with independently authorized service
+cutover and rollback. No Windows process/task or OAuth changes made.
+GOAL research executions = 0; real consumer unattended rollovers = 0/2.
+
+---
+
 ## 2026-11-02 KST — IMPORTANT CORRECTION: 7 LIVE SCRIPT-MATCHING TASKS
 
 A fresh, corrected **whole-Task-Scheduler** owner Windows read-only
