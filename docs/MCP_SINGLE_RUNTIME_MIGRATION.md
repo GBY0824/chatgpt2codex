@@ -220,3 +220,61 @@ The Windows Actions job result is authoritative: check the synthetic
 `actualWindowsFileShareTested:true` in its final JSON. This does not test
 an OS reboot or physical power loss and does not modify the real port 7979
 instance or user credentials.
+
+## Unified transaction engine — independently executed Windows CI
+
+Source-only script `scripts/verify-integrated-synthetic-mcp-upgrade.mjs`
+combines the previously separate concurrency/transaction lock and journal
+crash-recovery models. This is still **a test-only harness**: it rejects
+arbitrary path arguments and can work only under its own random, marker-
+verified, directly nested OS-temp fixture directory.
+
+Unlike earlier independent tests, **both the synthetic upgrade worker and
+recovery worker acquire the SAME exclusive owner lock before performing
+their file-tree and journal checks**. The lock records the owner PID and a
+random nonce; a second worker cannot enter during an owner operation. If
+the owner process terminates abnormally, the lock persists and all callers
+fail closed. Only the CI supervisor, after proving the specific child PID
+it launched has exited, may remove a lock in its own verified fixture.
+This is intentionally not a production stale-lock policy.
+
+The process creates an fsync'd journal containing SHA-256 digests of
+baseline installed tree, candidate and independent state. It tests five
+upgrade-crash points, two secondary recovery-crash points, repeated recovery
+idempotence, and foreign bytes failing closed. After a crash, a **fresh
+Node process** resumes recovery to exactly the original digest. The
+independent state must remain identical. File-tree renames never use
+`-Force` or overwrite an unknown destination.
+
+The Windows CI invokes a PowerShell child with a true `FileShare.None`
+handle on a **synthetic** candidate/installed file. It verifies both OS
+read-denial and that the integrated upgrader refuses to proceed while the
+handle is open. After release, integrated upgrade+recovery must succeed.
+
+**Verified result:** [Windows CI 41314467909](https://github.com/GBY0824/chatgpt2codex/actions/runs/41314467909)
+completed **SUCCESS**, including Linux and macOS jobs. The actual Windows
+job log reports `SYNTHETIC_INTEGRATED_TRANSACTION_RECOVERY_PASS`,
+`casesPassed:10`, `actualWindowsFileShareTested:true`,
+`realInstalledAppTouched:false`, `ownerStateRead:false`,
+`productionInstallerAvailable:false`, `realPowerLossTested:false`.
+An initial separate test failure was traced to incorrectly passing the
+PowerShell file path after `-Command`, so the temporary file was not
+actually locked; fixed by passing the path through an explicitly scoped
+child environment variable, matching the independently successful
+Windows FileShare regression. Do not count those failed runs as PASS.
+
+**Real owner Windows preflight read-only:** original installed `:7979`
+and isolated staging `:7987` listeners both alive on 127.0.0.1 with
+different processes; installed and staged CLI hashes differ, but both
+`package.json` versions say `0.2.0`. The *existing staged executable*
+does **not** have `STAGING_PROVENANCE.txt`, because provenance was
+introduced in later CI packaging, not retroactively installed. Therefore
+the current staging tree must NOT be promoted to production. A newly
+packaged release must be verified against its own source/CI digest, and
+all owner-facing state/config/service migration needs separate approval.
+
+Still not demonstrated: real production service handoff, Windows
+service/task/uninstaller configuration updates, existing-client OAuth
+reconsent, actual power cut+reboot, real updater stale-lock adjudication,
+directory durability across storage barriers, or original consumer
+ChatGPT provider-turn proof/rollover 0/2.
