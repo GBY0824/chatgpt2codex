@@ -13,6 +13,7 @@ on:
       - "src/cli.ts"
       - "src/state/isolated-state.ts"
       - "src/state/isolated-state.test.ts"
+      - "scripts/Prepare-GoalAppOfflineStage.ps1"
       - ".github/workflows/goal-app-auth-review.yml"
 
 permissions:
@@ -111,6 +112,7 @@ jobs:
           Copy-Item -Path node_modules -Destination staging-release\node_modules -Recurse
           Copy-Item -Path package.json -Destination staging-release\package.json
           Copy-Item -Path package-lock.json -Destination staging-release\package-lock.json
+          Copy-Item -Path scripts\Prepare-GoalAppOfflineStage.ps1 -Destination staging-release\Prepare-GoalAppOfflineStage.ps1
           @'
           GOAL APP WINDOWS ISOLATED SOURCE BUNDLE
           NO CREDENTIALS. NO OWNER TOKEN. NO INSTALLED SERVICE.
@@ -133,6 +135,27 @@ jobs:
           }
           $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
           if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
+      - name: Verify offline stage preparation and tamper rejection
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "goal-app-offline-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot "staging-release" -DestinationRoot $destination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or
+              $state.serviceStarted -ne $false) {
+            throw "Offline bundle stage verification did not stay inactive"
+          }
+          if (!(Test-Path (Join-Path $destination "dist/cli.js"))) { throw "Stage executable missing" }
+          $tampered = Join-Path $env:RUNNER_TEMP "goal-app-bundle-tampered"
+          Copy-Item -Path staging-release -Destination $tampered -Recurse
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tamper-negative-test"
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-tampered-stage")
+            throw "Tampered bundle was incorrectly accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
+          }
       - name: Upload isolated Windows bundle (not installed)
         uses: actions/upload-artifact@v4
         with:
