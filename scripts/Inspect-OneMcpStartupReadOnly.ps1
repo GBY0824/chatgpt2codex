@@ -28,6 +28,10 @@ $base = [ordered]@{
   multipleRecentWscriptCandidatesObserved = $false
   taskHistoryMetadataInspected = $false
   taskEventLogCorrelationEstablished = $false
+  # Read-only COM engine identity is narrower than restart/supervisor proof.
+  taskEngineInstanceScanCompleted = $false
+  liveWscriptTaskEngineMatchCount = 0
+  liveWscriptTailscaleInstanceMatch = $false
   legacyAutoRelaunchSafetyVerified = $false
   identifiedOwnerScheduledTask = $false
   taskActionArgumentsRead = $false
@@ -100,10 +104,12 @@ try {
 # line, environment variable, arguments, full paths, user identities or tokens.
 # Reject a younger "parent" after PID reuse as unproven ancestry.
 $chain = @()
+$wscriptAncestor = $null
 $cursor = $proc
 for ($depth = 0; $depth -lt 6 -and $null -ne $cursor; $depth++) {
   $name = if ($cursor.ExecutablePath) { [IO.Path]::GetFileName([string]$cursor.ExecutablePath) } else { "unknown" }
   $chain += $name
+  if ($null -eq $wscriptAncestor -and $name -ieq 'wscript.exe') { $wscriptAncestor = $cursor }
   $nextPid = [int]$cursor.ParentProcessId
   if ($nextPid -le 0 -or $nextPid -eq [int]$cursor.ProcessId) { break }
   try {
@@ -117,6 +123,52 @@ for ($depth = 0; $depth -lt 6 -and $null -ne $cursor; $depth++) {
   }
 }
 $base.processAncestryBasenames = @($chain)
+
+# Task Scheduler IRunningTask.EnginePID associates a CURRENT running
+# scheduler instance with the CURRENT WScript ancestor. This does not
+# identify all other scripts that could relaunch the process later.
+# No command lines, action arguments, environment, task principal or
+# credential values are accessed, executed or emitted.
+if ($null -ne $wscriptAncestor) {
+  try {
+    $scheduler = New-Object -ComObject Schedule.Service
+    $scheduler.Connect()
+    $runningTasks = @(Get-ScheduledTask -ErrorAction Stop | Where-Object { $_.State -eq 'Running' })
+    $engineMatches = @()
+    $complete = $true
+    foreach ($task in $runningTasks) {
+      try {
+        $registered = $scheduler.GetFolder([string]$task.TaskPath).GetTask([string]$task.TaskName)
+        foreach ($instance in @($registered.GetInstances(0))) {
+          if ([int]$instance.EnginePID -eq [int]$wscriptAncestor.ProcessId) {
+            $engineMatches += [string]$task.TaskName
+          }
+        }
+      } catch {
+        # A partially unreadable scheduler cannot establish a UNIQUE owner.
+        $complete = $false
+      }
+    }
+    # Avoid reporting a coincidental match after the original PID exits.
+    $again = Get-CimInstance -ClassName Win32_Process -Filter (
+      'ProcessId = ' + [int]$wscriptAncestor.ProcessId) -ErrorAction Stop
+    $againListener = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction Stop |
+      Select-Object -ExpandProperty OwningProcess -Unique)
+    if ($null -eq $again -or
+        [datetime]$again.CreationDate -ne [datetime]$wscriptAncestor.CreationDate -or
+        $againListener.Count -ne 1 -or [int]$againListener[0] -ne $pidValue) {
+      $complete = $false
+    }
+    if ($complete) {
+      $base.taskEngineInstanceScanCompleted = $true
+      $base.liveWscriptTaskEngineMatchCount = @($engineMatches).Count
+      $base.liveWscriptTailscaleInstanceMatch = @($engineMatches).Count -eq 1 -and
+        $engineMatches[0] -ceq 'ChatGPT To Codex MCP - Tailscale'
+    }
+  } catch {
+    # Unavailable COM/task metadata is UNKNOWN, never a false proof of no task.
+  }
+}
 
 # Startup folder inspection is filename metadata ONLY. No shortcuts or
 # scripts are opened, expanded or executed. Presence is supporting evidence,
