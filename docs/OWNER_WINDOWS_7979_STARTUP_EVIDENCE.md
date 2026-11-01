@@ -98,17 +98,24 @@ original process launcher; multiple tasks may refer to a shared
 filename or script family, and the Disabled guard's basename match
 does not make it a running supervisor.
 
-**Not verified:** exact resolved script *paths*, an original task-run
-event tied to the 2026-10-17 10:42 process, or proof of which scheduled
-task (if any) created or currently supervises the PID. A separate
-attempt to compare full paths returned no successful diagnostic and
-must **not** be treated as a path match or a failure of a task itself.
+**Verified stronger read-only identity (second Codex query):** an
+independent sanitized follow-up extracted absolute WScript script file
+paths from the active original 7979 process ancestor and the three
+named scheduled task action arguments **in local memory**, normalized
+them case-insensitively, and returned `exactFullPathMatch=true`
+for **all three**. It returned **zero raw paths or arguments**. All
+three tasks thus reference the same full script file path as the
+currently observed WScript ancestor, not just the same basename.
 
-Next focused step, if independently approved and feasible, is a
-privacy-preserving full-path identity comparison/launcher linkage
-with **booleans only**. No task disabling, service restart, startup
-editing, auth-state reads, or MCP replacement is authorized by
-these observations.
+**Still not verified:** which task invocation at 2026-10-17 10:42
+launched the process, which task has active PID supervision authority,
+or whether all three invoke the shared script with identical options.
+The Disabled OAuth guard's script-path match alone does not establish
+that it currently runs. Historical Task Scheduler operational logging
+is disabled. Do not disable tasks or edit launchers on the basis of
+path identity alone. Exact script behavior/arguments remain unprinted
+and unconfirmed. No service restarts, OAuth data access or production
+changes were made.
 ## Next approval and safety gate
 
 Before an in-place single-MCP upgrade, identify who actually supervises
