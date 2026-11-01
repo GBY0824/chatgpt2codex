@@ -1,5 +1,63 @@
 # Owner Windows 7979 startup — read-only observed evidence (2026-11-02 KST)
 
+## 2026-11-02 07:40 KST continuation — main task is mandatory, watchdog source remains unverified
+
+Fresh owner-PC read-only connector check: exactly **one** original
+`7979` listener; the registered task `ChatGPT To Codex MCP - Tailscale`
+was **Running**. A separate read-only filename-existence check found
+both `Watch-ChatGPTToCodexMcp.ps1` and `Start-FixedTailscaleMcp.ps1`
+in the known `%LOCALAPPDATA%/ChatGPTToCodexMCP` directory. **No
+file was opened or hashed**, no task configuration or OAuth state read
+and no Windows program changed. Presence is NOT source-byte identity.
+
+Independently, GitHub research repository
+`GBY0824/freqtrade-mcp-research` `main`,
+`tools/Watch-ChatGPTToCodexMcp.ps1` (Git blob
+`c553fe6d740e37bb949025a7d8e41f27b3093256`) contains
+`Start-ScheduledTask -TaskName $MainTaskName` in conditional branches
+where the expected local 7979 listener is missing, or where its
+expected process is present but the local protected MCP endpoint is
+unhealthy. This saved source also uses a restart-marker path in the
+second branch. Its `PublicProbeOnly` path primarily checks/repairs
+Tailscale transport rather than starting the Task Scheduler job.
+**This is research-source behavior, not proof the owner PC runs
+these exact bytes or that an invocation has actually relaunched a
+process.** Do not touch the local script merely to force a test.
+
+The prior synthetic migration script omitted the real running main
+Tailscale task from its required named-route list. This was corrected
+at source commit `aca982e7f5184f6515f1f35274fe7d7058bc97ff`.
+The review-only Windows CI for this precise SHA, [Actions 41359438356](https://github.com/GBY0824/chatgpt2codex/actions/runs/41359438356),
+**COMPLETED SUCCESS 3/3** (Linux/Windows/macOS); verified Windows
+job output:
+`SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS cases=42
+negativeCases=40 positiveFixtures=2` and downloaded staged archive
+`DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=3480`.
+The model now fails closed if the main task was omitted, mislabeled
+unrelated, has a live engine, has an unblocked restart policy or logon
+trigger, or if other relaunch/OAuth safeguards are absent.
+**The approved synthetic fixture never grants production cutover.**
+
+A separate source-only inspector fix,
+`7fc97030d6c13afc576fd001f3667b5a527ab796`, no longer calls
+`[IO.Path]::GetFileName` on arbitrary Task Scheduler
+`Action.Execute` strings, which can throw on malformed external
+task metadata and truncate classification. A pure synthetic string
+classifier mode and a hosted Windows regression step were added in
+`e0679e802432e810b7e363de64fbf8da5c5f5dc4`.
+Corresponding [Actions 41359827171](https://github.com/GBY0824/chatgpt2codex/actions/runs/41359827171)
+was **IN PROGRESS** at the original checkpoint. Re-check final CI
+before claiming the follow-up fix is all-platform PASS.
+
+This evidence does not prove that independent recurrent watchdogs
+cannot re-create 7979 after the main task exits. Identifying deployed
+watcher source identity and every re-launching mode, original private
+OAuth issuer/state, and owner-approved reversible quiescence remain
+strict prerequisites. GOAL executions still 0; real unattended CHAT
+rollovers still 0/2.
+
+---
+
 ## Scope
 
 This is a *non-secret, read-only* evidence receipt for an existing single-MCP
