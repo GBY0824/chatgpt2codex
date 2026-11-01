@@ -31,13 +31,22 @@ function assess(plan) {
     block("TASK_INVENTORY_NOT_EXACT");
   } else {
     for (const task of plan.tasks) {
-      // Every registered launcher is handled, even when it currently reports
-      // Disabled. A task name, script-path equality or LastTaskResult=0
-      // does NOT identify which task historically launched a process.
+      // Every same-script action must be examined, but a shared launcher
+      // may implement an unrelated mode (OSINT, etc.). Blocking unrelated
+      // owner workflows is not required when non-relaunch is independently
+      // established. A matching script path or argument suffix is NOT proof
+      // of active restart authority.
       if (task.presentVerified !== true || task.actionIdentityVerified !== true)
         block("TASK_IDENTITY_UNVERIFIED:" + task.name);
-      if (task.enabled === true || task.running === true || task.disabledVerified !== true)
-        block("TASK_NOT_QUIESCED:" + task.name);
+      if (task.routeRole === "legacy-relauncher") {
+        if (task.enabled === true || task.running === true || task.disabledVerified !== true)
+          block("TASK_NOT_QUIESCED:" + task.name);
+      } else if (task.routeRole === "verified-unrelated") {
+        if (task.noLegacyRelaunchProof !== true || task.noSharedOAuthWriterProof !== true)
+          block("UNRELATED_ROUTE_ISOLATION_UNVERIFIED:" + task.name);
+      } else {
+        block("TASK_RELAUNCH_ROLE_UNVERIFIED:" + task.name);
+      }
     }
   }
   if (plan.startupEntryInspected !== true) block("STARTUP_ENTRY_NOT_INSPECTED");
@@ -79,6 +88,8 @@ const approvedFixture = {
   tasks: [...requiredTasks, "SyntheticSharedRouteA", "SyntheticSharedRouteB",
     "SyntheticSharedRouteC", "SyntheticSharedRouteD"].map(name => ({
     name, presentVerified: true, actionIdentityVerified: true,
+    routeRole: "legacy-relauncher", noLegacyRelaunchProof: false,
+    noSharedOAuthWriterProof: false,
     enabled: false, running: false, disabledVerified: true,
   })),
   startupEntryInspected: true,
@@ -95,6 +106,21 @@ const approvedFixture = {
   rollbackRehearsed: true,
   oldAndNewNeverShareLiveState: true,
 };
+// Separate positive synthetic model: unrelated modes may remain Running
+// ONLY when static/runtime evidence positively excludes both 7979 relaunch
+// and concurrent writes to the legacy OAuth state. This is NOT a factual
+// classification of any real owner task; no real tasks are touched.
+const isolatedModeFixture = structuredClone(approvedFixture);
+for (const task of isolatedModeFixture.tasks.slice(3)) {
+  task.routeRole = "verified-unrelated";
+  task.noLegacyRelaunchProof = true;
+  task.noSharedOAuthWriterProof = true;
+  task.running = true;
+  task.enabled = true;
+  task.disabledVerified = false;
+}
+assert.equal(assess(isolatedModeFixture).syntheticPreconditionsMet, true);
+
 const scenarios = [
   ["WATCHDOG_ACTIVE", p => { p.tasks[0].enabled = true; }, "TASK_NOT_QUIESCED:ChatGPTToCodexEmergent-Watchdog"],
   ["SECOND_WATCHDOG_ACTIVE", p => { p.tasks[1].running = true; }, "TASK_NOT_QUIESCED:ChatGPTToCodexMcpSelfHealing"],
@@ -107,6 +133,8 @@ const scenarios = [
   ["WRONG_SHARED_SCRIPT_COUNT", p => { p.enumeratedMatchingTaskCount = 3; }, "TASK_INVENTORY_NOT_EXACT"],
   ["UNPARSEABLE_ACTION", p => { p.unparseableWscriptActions = 1; }, "ACTION_SCAN_UNPARSEABLE"],
   ["INCOMPLETE_ACTION_SCAN", p => { p.schedulerActionScanComplete = false; }, "ACTION_SCAN_INCOMPLETE"],
+  ["UNKNOWN_TASK_ROLE", p => { p.tasks[4].routeRole = "unknown"; }, "TASK_RELAUNCH_ROLE_UNVERIFIED:SyntheticSharedRouteB"],
+  ["FALSE_UNRELATED_CLAIM", p => { p.tasks[4].routeRole = "verified-unrelated"; }, "UNRELATED_ROUTE_ISOLATION_UNVERIFIED:SyntheticSharedRouteB"],
   ["STARTUP_ENTRY_STILL_ENABLED", p => { p.startupEntryDisabledVerified = false; }, "STARTUP_RELAUNCH_STILL_POSSIBLE"],
   ["UNINSPECTED_STARTUP", p => { p.startupEntryInspected = false; }, "STARTUP_ENTRY_NOT_INSPECTED"],
   ["UNKNOWN_AUTOSTART", p => { p.otherAutostartRoutesExcluded = false; }, "UNKNOWN_RELAUNCH_ROUTE"],
