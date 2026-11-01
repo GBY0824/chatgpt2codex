@@ -445,14 +445,19 @@ authorization for any real port 7979 replacement. A program-only backup
 
 ## Legacy OAuth continuity and migration — source and synthetic gate
 
-**Proven source identity:** the actual fork `main` and draft candidate have
-the exact same Git blob SHAs for `src/auth/oauth-store.ts` (495445cf),
-`src/auth/owner-token.ts` (73c6e3fe), `src/auth/oauth-provider.ts`
-(ce8b859f), `src/state/store.ts` (80317f90) and
-`src/state/ledger.ts` (341c999b). This is strong source-level evidence
-that the persisted OAuth `oauth.json` and `owner-token.json` schemas,
-client registry, refresh-token rotation and core session state were not
-rewritten in the fork. It does NOT establish real client reconnection.
+**Source identity before fail-closed hardening:** baseline `main`
+and an earlier draft revision had identical Git blobs for
+`src/auth/oauth-store.ts` (baseline 495445cf),
+`src/auth/owner-token.ts` (73c6e3fe),
+`src/auth/oauth-provider.ts` (ce8b859f),
+`src/state/store.ts` (80317f90) and
+`src/state/ledger.ts` (341c999b). **The candidate OAuth store is
+now intentionally different:** its persisted JSON format and token
+interfaces stay compatible, but corrupt/unreadable existing documents
+are rejected rather than converted to empty. The CLI now checks this
+before any owner-token rotation. The cross-version synthetic CI is the
+active compatibility proof, not identical code blobs. Neither proves
+actual hosted ChatGPT reconnection.
 
 **Synthetic cross-version proof:** `scripts/verify-legacy-auth-continuity.mjs`
 is run as a separate CI test after building *both* fork main and candidate.
@@ -512,3 +517,39 @@ client reconnection before/after a *separately approved reversible
 cutover*, GOAL consent for additional scope, and the original ordinary
 consumer ChatGPT Project CHAT provider-turn attestation + two rollovers.
 The last target remains **0/2** until live evidence exists.
+
+## Prevent silent OAuth client loss on corrupt files (source-only)
+
+Prior implementation of `JsonOAuthStore.load()` silently returned an
+empty store after **any** JSON parse, schema validation or read failure.
+The next registration or token update could then overwrite existing
+`oauth.json`, apparently erasing all registered clients. This is
+incompatible with safe in-place migration.
+
+The draft candidate now distinguishes a genuinely absent file
+(`ENOENT`, allowed on first-time initialization) from an existing
+invalid/unsupported/unreadable file (hard error
+`OAUTH_STORE_CORRUPT_REFUSE_WRITE` or `OAUTH_STORE_READ_FAILED`).
+Normal OAuth operations, including `clearAll()`, will not overwrite a
+damaged existing document. The corrupt original bytes remain intact
+for private, owner-controlled recovery.
+
+The CLI `init`, `owner-token --generate` and
+`owner-token --set-stdin` check OAuth readability **before** changing
+the Owner Token, and `init` checks it before project/session writes.
+`scripts/verify-corrupt-oauth-cli-rotation.mjs` tests actual compiled
+CLI commands with a disposable fake owner-token hash and corrupt OAuth
+JSON. The `src/auth/oauth-store-failclosed.test.ts` suite also tests
+invalid JSON, valid JSON with invalid schema, unsupported version,
+unreadable non-file, all store mutation paths and recovery after
+explicit fixture repair. These are **synthetic source/CLI CI tests**,
+never probes of the owner's actual secrets.
+
+**Limits:** This change does not provide a transactional two-file
+OAuth/Owner Token rotation or cross-process write locking, and cannot
+guarantee uninterrupted service if storage fails between writes. Do
+not rotate tokens or run `init` as a migration procedure. Full program
+and private state migration still requires separately authorized
+backup, shutdown of the verified original writer, signed/trusted
+release, real-client health checks and rollback. PR remains draft,
+source-only, with consumer CHAT rollovers 0/2.
