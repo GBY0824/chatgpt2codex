@@ -1,0 +1,79 @@
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { JsonOAuthStore, hashToken } from "./oauth-store.js";
+
+const REDIRECT = "http://127.0.0.1:49173/callback";
+const basicClient = {
+  client_name: "synthetic-client-only",
+  redirect_uris: [REDIRECT],
+  grant_types: ["authorization_code", "refresh_token"],
+  response_types: ["code"],
+  token_endpoint_auth_method: "none" as const,
+};
+const now = Math.floor(Date.now() / 1000);
+const pair = {
+  accessTokenHash: hashToken("synthetic-access-token-1"),
+  accessToken: { clientId: "synthetic", scopes: ["chatgpt2codex"], expiresAt: now + 3600 },
+  refreshTokenHash: hashToken("synthetic-refresh-token-1"),
+  refreshToken: { clientId: "synthetic", scopes: ["chatgpt2codex"], expiresAt: now + 3600 },
+};
+
+describe("OAuth store existing-state fail-closed recovery boundary", () => {
+  let dir: string;
+  let store: JsonOAuthStore;
+  const oauthFile = () => join(dir, "oauth.json");
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "chatgpt2codex-oauth-failclosed-"));
+    store = new JsonOAuthStore(dir);
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("still allows first registration when oauth.json is truly absent", async () => {
+    const client = await store.registerClient(basicClient, []);
+    expect(client.client_id).toMatch(/^chatgpt2codex-/);
+    const stored = await store.getClient(client.client_id);
+    expect(stored?.client_id).toBe(client.client_id);
+  });
+
+  for (const [label, corrupt] of [
+    ["invalid JSON", "{ this is not valid JSON"],
+    ["incorrect schema", '{"version":1,"updatedAt":0,"clients":{},"accessTokens":[],"refreshTokens":[]}'],
+    ["unsupported format version", '{"version":2,"updatedAt":0,"clients":[],"accessTokens":[],"refreshTokens":[]}'],
+  ] as const) {
+    it("refuses all reads/writes without touching " + label, async () => {
+      await writeFile(oauthFile(), corrupt);
+      const before = await readFile(oauthFile());
+      await expect(store.getClient("synthetic")).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+      await expect(store.getAccessToken(pair.accessTokenHash)).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+      await expect(store.getRefreshToken(pair.refreshTokenHash)).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+      await expect(store.registerClient(basicClient, [])).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+      await expect(store.saveTokenPair(pair)).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+      await expect(store.deleteAccessToken(pair.accessTokenHash)).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+      await expect(store.deleteRefreshToken(pair.refreshTokenHash)).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+      await expect(store.clearAll()).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+      expect(await readFile(oauthFile())).toEqual(before);
+    });
+  }
+
+  it("refuses an existing unreadable non-file rather than emptying it", async () => {
+    await mkdir(oauthFile());
+    await expect(store.registerClient(basicClient, [])).rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(store.clearAll()).rejects.toThrow("OAUTH_STORE_READ_FAILED");
+  });
+
+  it("a rejected operation does not poison the queue after explicit fixture repair", async () => {
+    await writeFile(oauthFile(), "{invalid");
+    await expect(store.registerClient(basicClient, [])).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+    // Synthetic fixture repair only. The application never performs this.
+    await writeFile(oauthFile(), JSON.stringify({
+      version: 1, updatedAt: 0, clients: [], accessTokens: [], refreshTokens: [],
+    }));
+    const client = await store.registerClient(basicClient, []);
+    expect((await store.getClient(client.client_id))?.client_id).toBe(client.client_id);
+  });
+});
