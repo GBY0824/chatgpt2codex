@@ -10,6 +10,9 @@ on:
       - "src/server/tools.ts"
       - "src/server/tools-catalog.test.ts"
       - "src/server/mcp-remote-control.test.ts"
+      - "src/cli.ts"
+      - "src/state/isolated-state.ts"
+      - "src/state/isolated-state.test.ts"
       - ".github/workflows/goal-app-auth-review.yml"
 
 permissions:
@@ -29,7 +32,7 @@ jobs:
       - name: Full TypeScript typecheck
         run: npm run typecheck
       - name: GOAL intent and MCP tool catalog regressions
-        run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts
+        run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts src/state/isolated-state.test.ts
       - name: Full source build (no deployment)
         run: npm run build
 
@@ -68,11 +71,24 @@ jobs:
             Split-Path $candidate | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
       - name: Windows GOAL OAuth and local HTTPS regressions
-        run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts
+        run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts src/state/isolated-state.test.ts
       - name: Windows TypeScript typecheck
         run: npm run typecheck
       - name: Windows source build only
         run: npm run build
+      - name: Windows CLI isolated-state nonproduction smoke
+        shell: pwsh
+        run: |
+          $isolated = Join-Path $env:RUNNER_TEMP "goal-cli-isolated-state"
+          $result = & node dist/cli.js owner-token --status --isolated-state-dir $isolated
+          if ($LASTEXITCODE -ne 0) { throw "Isolated status failed" }
+          $parsed = $result | ConvertFrom-Json
+          if ($parsed.configured -ne $false) { throw "Unexpected inherited owner token" }
+          $blocked = & node dist/cli.js serve --http --isolated-state-dir $isolated --port 7979 2>&1
+          if ($LASTEXITCODE -eq 0 -or -not (($blocked -join " ") -match "ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED")) {
+            throw "Isolated mode did not reject production port"
+          }
+          if (Test-Path $isolated) { throw "Blocked operation wrote to isolated state" }
       - name: Package isolated Windows staging bundle (no deployment)
         shell: pwsh
         run: |
@@ -88,8 +104,11 @@ jobs:
           NO CREDENTIALS. NO OWNER TOKEN. NO INSTALLED SERVICE.
           This is a review-only Node 22+ build generated in a disposable
           GitHub-hosted Windows runner, NOT an update to the user PC.
-          Never start with the production state directory or existing port 7979.
-          Use a separate temporary workspace/state/loopback endpoint only.
+          Use --isolated-state-dir ABSOLUTE_PATH on every CLI invocation.
+          Isolated serve requires explicit non-7979 port, loopback host and
+          loopback HTTP public origin; desktop control is disabled.
+          Do not reuse the default/production owner state, port or Funnel.
+          A separate, owner-approved HTTPS deployment is NOT included.
           chatgpt2codex.goal records APP INTENT ONLY; no P3 authorization,
           research dispatch or consumer ChatGPT rollover is granted.
           '@ | Set-Content -Path staging-release\STAGING_README.txt -Encoding UTF8
