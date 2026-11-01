@@ -35,6 +35,17 @@
   **never assigns ownership** from timing alone. No task arguments,
   process command lines, private OAuth state or configuration changes.
   Do not disable startup or scheduled tasks without cutover approval.
+- **Codex PC read-only follow-up (2026-11-02):** WScript script
+  **filenames** parsed privately from the live 7979 ancestor and all
+  three registered task actions match. This is NOT evidence of matching
+  absolute paths or proof of task-to-PID control; even the Disabled
+  OAuth guard task has the same filename. Full path comparison remained
+  unverified. Exact result and boundaries are committed to
+  [OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md](./OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md).
+  Owner allows asking Codex for PC information. Request focused,
+  read-only diagnostics through the connector, output only nonsecret
+  statuses/booleans, never expose raw arguments or private OAuth state.
+
 
 ## User's actual objective (nonnegotiable)
 
