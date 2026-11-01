@@ -133,6 +133,8 @@ jobs:
                 -not $observed.listenLoopbackOnly -or
                 -not $observed.uniqueListeningPid -or
                 -not $observed.processObserved -or
+                @($observed.processAncestryBasenames).Count -lt 1 -or
+                $observed.startupCandidateProvenLauncher -or
                 $observed.automaticStartupMechanismIdentified -or
                 $observed.fullProcessCommandLineRead -or
                 $observed.credentialsRead -or
