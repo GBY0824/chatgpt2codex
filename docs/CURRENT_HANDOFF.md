@@ -49,18 +49,27 @@
 - New candidate cross-process OAuth writer lock `oauth-write.lock`: 3
   independent Node processes register 8 synthetic clients each, **24 retained**;
   stale lock blocks writes. This lock is **NOT honored by production v0.2.0**.
-- Most recent last fully successful and independently checked workflow
-  *before latest ownership hardening*: source SHA
-  `1034255f33bcef217867648b3bce26287f2ab966`,
-  [GitHub Actions 41333413374](https://github.com/GBY0824/chatgpt2codex/actions/runs/41333413374),
-  3/3 jobs SUCCESS, sealed **3,480 files** checked.
-- **New work pending/requiring full independent CI confirmation at handoff
-  write:** writer-lock release now checks original random nonce and file
-  identity rather than blindly unlinking a replaced claim;
-  `src/auth/oauth-store-failclosed.test.ts` now tests tampered lock must
-  survive cleanup and block further writes.
-  Fetch PR head and latest Actions run; do not claim this new test passed
-  without actual logs.
+- **Latest fully verified code/test checkpoint:** source SHA
+  `d220dbbf3c38a4a6e451b729b8307edbaca2fa48`,
+  [GitHub Actions 41334720405](https://github.com/GBY0824/chatgpt2codex/actions/runs/41334720405):
+  status **COMPLETED SUCCESS**, Linux/Windows/macOS **3/3 jobs PASS**.
+  Linux and Windows logs each prove **7 OAuth fail-closed tests PASS**, 24
+  synthetic cross-process clients retained, and stale lock/owner-token
+  guard. Windows review archive upload/download validates **3,480 files**.
+- **Latest writer-lock ownership repair:** every claim has a random nonce
+  and file identity; cleanup refuses to delete a modified/replaced claim
+  (`OAUTH_WRITE_LOCK_OWNERSHIP_LOST`). CI negative test demonstrates
+  foreign marker remains and blocks the next write. This is best-effort
+  validation, **not an atomic unlink-by-handle** guarantee.
+- **Failure diagnosis already closed:** first ownership-regression CI
+  [41334554024](https://github.com/GBY0824/chatgpt2codex/actions/runs/41334554024)
+  failed on all three OS because Vitest default test timeout was 5 seconds,
+  while the intended stale-lock refusal waits 5 seconds. Test timeout
+  extended to 20 seconds in source SHA `d220dbbf`, followed by clean
+  all-platform independent validation. Do not count the failed run as PASS.
+- **Status freshness:** this handoff text is maintained on an active branch
+  and a docs-only later commit may move its HEAD. Always fetch current
+  PR HEAD/latest run and compare before reporting final CI status.
 
 ## The current source areas
 
