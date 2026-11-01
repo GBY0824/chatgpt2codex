@@ -122,6 +122,17 @@ jobs:
         run: node scripts/verify-synthetic-windows-locks.mjs
       - name: Integrated synthetic transaction lock journal and process-crash recovery
         run: node scripts/verify-integrated-synthetic-mcp-upgrade.mjs
+      - name: Synthetic Windows WScript executable classifier malformed-action refusal
+        shell: pwsh
+        run: |
+          $classifier = & ./scripts/Inspect-OneMcpStartupReadOnly.ps1 -ValidateWscriptClassifierOnly | ConvertFrom-Json
+          if ($classifier.code -ne 'SYNTHETIC_WSCRIPT_EXECUTABLE_CLASSIFIER_PASS' -or
+              $classifier.cases -ne 9 -or
+              $classifier.ownerHostInspected -or
+              $classifier.productionCutoverAuthorized) {
+            throw "Malformed Action.Execute was not classified safely"
+          }
+          Write-Host "SYNTHETIC_WSCRIPT_EXECUTABLE_CLASSIFIER_CI_PASS"
       - name: Windows read-only MCP listener ownership inventory (synthetic sockets only)
         shell: pwsh
         run: |
