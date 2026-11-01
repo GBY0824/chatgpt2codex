@@ -139,6 +139,11 @@ jobs:
                 $observed.taskActionArgumentsRead -or
                 $observed.matchingScheduledTaskCount -lt 0 -or
                 $observed.readyWscriptTaskCandidateCount -lt 0 -or
+                $observed.recentlySuccessfulWscriptTaskCandidateCount -lt 0 -or
+                $observed.recentlySuccessfulWscriptTaskCandidateCount -gt $observed.readyWscriptTaskCandidateCount -or
+                $observed.multipleRecentWscriptCandidatesObserved -ne ($observed.recentlySuccessfulWscriptTaskCandidateCount -ge 2) -or
+                $observed.taskEventLogCorrelationEstablished -or
+                $observed.legacyAutoRelaunchSafetyVerified -or
                 $observed.automaticStartupMechanismIdentified -or
                 $observed.fullProcessCommandLineRead -or
                 $observed.credentialsRead -or
