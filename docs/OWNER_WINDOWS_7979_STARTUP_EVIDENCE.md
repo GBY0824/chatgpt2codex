@@ -34,9 +34,26 @@ credentials, start a second MCP against the same OAuth state, or merge PR #1.
   self-healing tasks were in **Ready** state with logon and time triggers,
   and one authentication guard was **Disabled**. Neither task arguments
   nor task scripts were opened or printed. Ready != running.
-- No process command-line, Task Scheduler arguments, OAuth files, owner
-  token values, startup settings or other service configuration was
-  modified; no credentials were printed.
+- **Timestamp correlation (2026-11-02 03:33-03:34 local check):**
+  the live listener's `node.exe`, parent `powershell.exe` and ancestor
+  `wscript.exe` have process creation minute **2026-10-17 10:42**.
+  The Ready scheduled task `ChatGPTToCodexEmergent-Watchdog` most
+  recently ran at **2026-11-02 03:34**, LastTaskResult **0**. The Ready
+  task `ChatGPTToCodexMcpSelfHealing` most recently ran at
+  **2026-11-02 03:33**, LastTaskResult **0**. Both action executable
+  basenames are `wscript.exe`. The Disabled `ChatGPTToCodexOAuthGuard`
+  last ran on **2026-09-14 16:04**. These **current successes**, many
+  days after the original process was created, indicate the two tasks
+  remain recurring supervision candidates but **do not prove** they
+  launched or currently control this exact PID.
+- A targeted query for Task Scheduler operational event IDs 100/102/
+  200/201 in the original start window **2026-10-17 10:40-10:45**
+  returned zero records; available evidence cannot distinguish no
+  event from inaccessible/disabled/expired logs. Do not infer launcher
+  identity from missing event logs.
+- No process command-line, Task Scheduler action arguments, OAuth files,
+  owner token values, startup settings or other service configuration
+  was modified; no credentials were printed.
 
 ## What is and is not proven
 
