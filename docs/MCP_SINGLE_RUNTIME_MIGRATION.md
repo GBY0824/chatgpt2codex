@@ -278,3 +278,31 @@ service/task/uninstaller configuration updates, existing-client OAuth
 reconsent, actual power cut+reboot, real updater stale-lock adjudication,
 directory durability across storage barriers, or original consumer
 ChatGPT provider-turn proof/rollover 0/2.
+
+## Read-only owner-PC candidate provenance preflight
+
+`scripts/Inspect-OneMcpCutoverReadiness.ps1` accepts **only two explicit
+directory arguments** (existing installation and staged candidate) and
+prints a JSON report. It performs NO file copy/write/delete, changes NO
+service, config, registry or credential, and does not inspect the original
+user state. It compares installed/staged `dist/cli.js` hashes and package
+versions, checks the stage's `STAGING_PROVENANCE.txt` source/CI identities,
+and verifies that the manifest's **critical entries** agree with candidate
+`dist/cli.js`, `package.json`, and the provenance file. It does NOT
+replace full offline bundle manifest verification or independently attest
+signed publisher identity.
+
+Every report states `productionCutoverAuthorized:false`,
+`productionChanged:false`, `credentialsRead:false`,
+`serviceAndProcessOwnershipChecked:false`, and
+`fullBundleManifestVerified:false`. A report never authorizes a live
+upgrade even when the critical manifest is self-consistent.
+
+GitHub-hosted Windows CI tests a candidate with provenance and manifest,
+an older unproven candidate lacking those receipts, and same-path
+overlap rejection. The owner's currently running 7987 staging copy
+was independently observed to **lack** the newer provenance file and is
+therefore NOT acceptable for single-MCP production replacement. No owner
+interaction, hidden path probing or token transfer was performed for
+this gate. A separate owner-approved preflight against a **new** verified
+bundle is required before a real cutover.
