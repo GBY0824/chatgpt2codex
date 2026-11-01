@@ -16,6 +16,7 @@ on:
       - "scripts/Prepare-GoalAppOfflineStage.ps1"
       - "scripts/goal_app_local_oauth_smoke_20261101.mjs"
       - "scripts/verify-legacy-mcp-compat.mjs"
+      - "scripts/verify-synthetic-windows-cutover.mjs"
       - "docs/GOAL_APP_AUTH_REVIEW.md"
       - "docs/MCP_SINGLE_RUNTIME_MIGRATION.md"
       - ".github/workflows/goal-app-auth-review.yml"
@@ -92,6 +93,10 @@ jobs:
           }
       - name: Windows GOAL OAuth and local HTTPS regressions
         run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts src/state/isolated-state.test.ts
+      # Does not read, stop, or overwrite the owner's installed MCP. All test
+      # paths are generated under the disposable Windows runner temp root.
+      - name: Synthetic Windows single-MCP cutover and rollback injections
+        run: node scripts/verify-synthetic-windows-cutover.mjs
       - name: Windows TypeScript typecheck
         run: npm run typecheck
       - name: Windows source build only
