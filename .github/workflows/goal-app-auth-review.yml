@@ -20,6 +20,7 @@ on:
       - "scripts/verify-synthetic-windows-crash-recovery.mjs"
       - "scripts/verify-synthetic-windows-locks.mjs"
       - "scripts/verify-integrated-synthetic-mcp-upgrade.mjs"
+      - "scripts/Inspect-OneMcpCutoverReadiness.ps1"
       - "docs/GOAL_APP_AUTH_REVIEW.md"
       - "docs/MCP_SINGLE_RUNTIME_MIGRATION.md"
       - ".github/workflows/goal-app-auth-review.yml"
@@ -219,6 +220,41 @@ jobs:
           }
           $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
           if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
+      - name: Read-only single-MCP provenance and nonpromotable stage fences
+        shell: pwsh
+        run: |
+          $testOriginal = Join-Path $env:RUNNER_TEMP "synthetic-existing-mcp"
+          New-Item -ItemType Directory -Path (Join-Path $testOriginal "dist") -Force | Out-Null
+          "synthetic-installed-legacy" | Set-Content -Path (Join-Path $testOriginal "dist/cli.js") -Encoding ascii
+          Copy-Item package.json -Destination (Join-Path $testOriginal "package.json")
+          $result = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $testOriginal -CandidateStageDir "staging-release" | ConvertFrom-Json
+          if ($result.code -ne "READONLY_SINGLE_MCP_CUTOVER_PREFLIGHT" -or
+              -not $result.candidateHasReviewProvenance -or
+              -not $result.candidateHasSelfConsistentCriticalManifest -or
+              $result.productionCutoverAuthorized -or
+              $result.productionChanged -or
+              $result.credentialsRead -or
+              $result.installedUserStateInspected -or
+              $result.fullBundleManifestVerified) {
+            throw "Review-only provenance preflight failed or granted unsafe authority"
+          }
+          $oldStage = Join-Path $env:RUNNER_TEMP "synthetic-unproven-stage"
+          New-Item -ItemType Directory -Path (Join-Path $oldStage "dist") -Force | Out-Null
+          Copy-Item (Join-Path "staging-release" "dist/cli.js") (Join-Path $oldStage "dist/cli.js")
+          Copy-Item package.json -Destination (Join-Path $oldStage "package.json")
+          $legacy = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $testOriginal -CandidateStageDir $oldStage | ConvertFrom-Json
+          if ($legacy.candidateHasReviewProvenance -or $legacy.candidateHasSelfConsistentCriticalManifest -or
+              $legacy.productionCutoverAuthorized -or
+              "CANDIDATE_PROVENANCE_MISSING_OR_INVALID" -notin $legacy.reasons) {
+            throw "Unproven older candidate was incorrectly treated as promotable"
+          }
+          try {
+            & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $testOriginal -CandidateStageDir $testOriginal | Out-Null
+            throw "The same real path was not rejected"
+          } catch {
+            if ($_.Exception.Message -notmatch "READONLY_PREFLIGHT_PATH_OVERLAP") { throw }
+          }
+          Write-Host "SINGLE_MCP_READONLY_PREFLIGHT_TESTS_PASS"
       - name: Verify offline stage preparation and tamper rejection
         shell: pwsh
         run: |
