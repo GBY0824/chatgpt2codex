@@ -391,3 +391,54 @@ These are **offline package acceptance tests**, not an owner-PC
 installation, proof against all possible race conditions, a trusted
 publisher signature, or production cutover authorization. Never
 apply the old force-copy installer to the live 7979 installation.
+
+## Verified program snapshot and restore-to-new-folder (pre-cutover gate, not installer)
+
+The review branch now contains
+`scripts/New-OneMcpVerifiedProgramSnapshot.ps1`, which implements two
+explicit **owner-initiated** modes:
+
+- **Capture** makes a *new* disjoint backup folder holding an exact copy
+  of an installed-program file tree and a JSON receipt with each file's
+  SHA-256, length and relative path. The caller must provide the existing
+  program's externally pinned `dist/cli.js` SHA-256 and
+  `-ApproveBackupOnly`. The script hashes source before and after
+  copying, hashes the fresh backup, and only then publishes
+  `BACKUP_RECEIPT.json` and its independent SHA-256.
+- **Restore** accepts a pinned snapshot receipt SHA-256, pins the
+  original CLI SHA-256 again, verifies the entire snapshot file tree,
+  and creates a *different* new folder with restored program files.
+  It then re-hashes all restored files. This mode **refuses** an already
+  existing destination, wrong receipt hash, altered file, source/dest
+  overlap or reparse-point path.
+
+The script never deletes or replaces the original installation, stops
+a process, restarts a service, modifies OAuth or user-state directories,
+runs npm, changes shortcuts/ports, grants GOAL authority, or installs
+the candidate upgrade. On failure, any newly created incomplete backup
+or restore folder is left for manual inspection, rather than performing
+an unsafe recursive delete. Receipts and backup copies remain **private
+local artifacts** and must never be uploaded to a source repository:
+the program tree might contain embedded configuration or private data.
+
+GitHub-hosted Windows CI uses **only synthetic fixtures** containing
+three program files (including an actual Windows Hidden asset) and
+a separate synthetic user-state file. It verifies the successful
+capture and new-folder restoration, rejects absent explicit approval,
+wrong original CLI hash, wrong receipt SHA, existing restore
+destination and deliberately tampered backed-up program file. It also
+checks that independent user state never changes. The review-only
+CI stage package includes this script under the full SHA256 manifest.
+
+**Boundaries:** this is a program-file backup, **not a complete MCP
+rollback**. It does not back up the separately stored OAuth data,
+registered client state, Windows Task Scheduler/service/startup settings,
+browser extension, user research state, or external connections. Live
+backup consistency depends on the program directory staying unchanged
+during the snapshot; hash comparisons detect ordinary modification but
+do not eliminate filesystem TOCTOU or abrupt power failure. Before an
+actual single-runtime cutover, separately inspect/backup those other
+state owners, close processes safely, prove Windows installer ownership,
+test handoff/rollback with authentic clients, and obtain explicit owner
+authorization for any real port 7979 replacement. A program-only backup
+**never authorizes** the actual cutover.
