@@ -24,6 +24,11 @@ $base = [ordered]@{
   taskNameMetadataInspected = $false
   matchingScheduledTaskCount = 0
   readyWscriptTaskCandidateCount = 0
+  recentlySuccessfulWscriptTaskCandidateCount = 0
+  multipleRecentWscriptCandidatesObserved = $false
+  taskHistoryMetadataInspected = $false
+  taskEventLogCorrelationEstablished = $false
+  legacyAutoRelaunchSafetyVerified = $false
   identifiedOwnerScheduledTask = $false
   taskActionArgumentsRead = $false
   automaticStartupMechanismIdentified = $false
@@ -143,16 +148,37 @@ try {
   $base.taskNameMetadataInspected = $true
   $base.matchingScheduledTaskCount = $relatedTasks.Count
   $readyWscript = 0
+  $recentSuccess = 0
+  $nowLocal = Get-Date
   foreach ($task in $relatedTasks) {
     if ([string]$task.State -notin @("Ready", "Running")) { continue }
+    $isWscript = $false
     foreach ($action in @($task.Actions)) {
       if ($action.Execute -and [IO.Path]::GetFileName([string]$action.Execute) -ieq "wscript.exe") {
-        $readyWscript++
+        $isWscript = $true
         break
       }
     }
+    if (!$isWscript) { continue }
+    $readyWscript++
+    # Get-ScheduledTaskInfo reads metadata only, not action arguments.
+    # A successful recent task does not prove it owns the observed PID,
+    # and absent/disabled event history does not prove absence of a watcher.
+    try {
+      $info = Get-ScheduledTaskInfo -InputObject $task -ErrorAction Stop
+      $base.taskHistoryMetadataInspected = $true
+      if ($info -and [int64]$info.LastTaskResult -eq 0 -and
+          $info.LastRunTime -and [datetime]$info.LastRunTime -le $nowLocal -and
+          [datetime]$info.LastRunTime -ge $nowLocal.AddMinutes(-15)) {
+        $recentSuccess++
+      }
+    } catch {
+      # TaskInfo is not readable for some user or Windows configurations.
+    }
   }
   $base.readyWscriptTaskCandidateCount = $readyWscript
+  $base.recentlySuccessfulWscriptTaskCandidateCount = $recentSuccess
+  $base.multipleRecentWscriptCandidatesObserved = ($recentSuccess -ge 2)
 } catch {
   # Some Windows editions or restricted accounts hide scheduled task data.
   # Unknown is never a claim that the service has no scheduler/watchdog.
