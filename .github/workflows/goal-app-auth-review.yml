@@ -162,4 +162,33 @@ jobs:
           name: goal-app-windows-source-${{ github.sha }}
           path: staging-release/
           retention-days: 7
+          # SHA256SUMS lists dot-files/dirs (e.g. node_modules/.bin).
+          # upload-artifact@v4.4+ drops these by default, causing an
+          # unrecoverable missing-file error after the owner extracts the ZIP.
+          # Only staged source assets are in this upload; no credentials.
+          include-hidden-files: true
           if-no-files-found: error
+      - name: Download the published archive for round-trip validation
+        uses: actions/download-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-artifact-download
+      - name: Verify downloaded artifact hashes and offline stage replay
+        shell: pwsh
+        run: |
+          $downloaded = (Resolve-Path staging-artifact-download).Path
+          $manifest = Join-Path $downloaded "SHA256SUMS.txt"
+          if (!(Test-Path $manifest)) { throw "Downloaded SHA256 manifest missing" }
+          $expectedCount = @(Get-Content $manifest).Count
+          $artifactCount = @(Get-ChildItem -LiteralPath $downloaded -Recurse -File -Force).Count
+          if ($artifactCount -ne ($expectedCount + 1)) {
+            throw "Artifact roundtrip file count mismatch: manifest=$expectedCount archive=$artifactCount"
+          }
+          $roundtripDestination = Join-Path $env:RUNNER_TEMP "goal-app-downloaded-artifact-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $downloaded -DestinationRoot $roundtripDestination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or $state.serviceStarted -ne $false) {
+            throw "Downloaded archive failed its own SHA256 offline stage replay"
+          }
+          Write-Host "DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=$expectedCount"
