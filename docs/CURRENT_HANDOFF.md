@@ -71,10 +71,15 @@
   **COMPLETED SUCCESS 3/3**. It includes sanitized process ancestry/
   current-user Startup inspection on synthetic Windows sockets and
   preserves all prior OAuth concurrency and 3,480-file checksum tests.
-  New Scheduled Task metadata counts and non-attribution CI on source
-  SHA `fc87df3b4335350ba0b3f1c43a344ac5103d777c`
-  ([Actions 41336612917](https://github.com/GBY0824/chatgpt2codex/actions/runs/41336612917))
-  were **in progress at this handoff edit**; check before claiming PASS.
+  **New Scheduled Task metadata and non-attribution source gate**
+  SHA `fc87df3b4335350ba0b3f1c43a344ac5103d777c`,
+  [Actions 41336612917](https://github.com/GBY0824/chatgpt2codex/actions/runs/41336612917)
+  **COMPLETED SUCCESS 3/3** Linux/Windows/macOS. Actual Windows log
+  proves `ONE_MCP_STARTUP_READONLY_INVENTORY_CI_PASS`,
+  ten integrated synthetic recovery cases and `DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=3480`.
+  Windows review-only artifact ID `13095083533`; it is NOT installed
+  on the owner's PC. Later docs-only HEAD commits do not imply
+  fresh CI results.
   Last source auth-lock proof [41334720405](https://github.com/GBY0824/chatgpt2codex/actions/runs/41334720405)
   passed Linux/Windows/macOS 3/3 with 7/7 tests, 24 synthetic OAuth
   client records, and 3,480 sealed files.
