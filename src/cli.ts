@@ -23,6 +23,7 @@ import { Store } from "./state/store.js";
 import { Ledger } from "./state/ledger.js";
 import { createServer } from "./server/mcp-server.js";
 import { createHttpServer, defaultHttpServerConfig } from "./server/http.js";
+import { resolveIsolatedStateDir } from "./state/isolated-state.js";
 import { generateOwnerToken, hasOwnerToken, storeOwnerToken } from "./auth/owner-token.js";
 import { JsonOAuthStore } from "./auth/oauth-store.js";
 import { checkIntakeAvailability } from "./assets/image-intake.js";
@@ -79,9 +80,8 @@ function defaultConfig(workspaceRoot: string, stateDir: string): Config {
   };
 }
 
-async function buildToolContext(workspace: string): Promise<ToolContext> {
+async function buildToolContext(workspace: string, stateDir = defaultStateDir()): Promise<ToolContext> {
   const workspaceRoot = path.resolve(workspace);
-  const stateDir = defaultStateDir();
 
   const store = new Store(stateDir);
   const ledger = new Ledger(stateDir);
@@ -154,7 +154,8 @@ async function applyStartupProjectSelection(ctx: ToolContext, flags: Record<stri
 
 async function cmdServeStdio(flags: Record<string, string | boolean>): Promise<void> {
   const workspace = typeof flags.workspace === "string" ? flags.workspace : process.cwd();
-  const ctx = await buildToolContext(workspace);
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
+  const ctx = await buildToolContext(workspace, stateDir);
   await applyStartupProjectSelection(ctx, flags);
   if (isControlEnabled()) startExecutor(ctx);
   const server = await createServer(ctx);
@@ -172,7 +173,8 @@ async function cmdServeStdio(flags: Record<string, string | boolean>): Promise<v
  */
 async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<void> {
   const workspace = typeof flags.workspace === "string" ? flags.workspace : process.cwd();
-  const ctx = await buildToolContext(workspace);
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
+  const ctx = await buildToolContext(workspace, stateDir);
 
   if (!(await hasOwnerToken(ctx.stateDir))) {
     console.error(
@@ -253,7 +255,7 @@ async function cmdServe(flags: Record<string, string | boolean>): Promise<void> 
 async function cmdInit(flags: Record<string, string | boolean>): Promise<void> {
   const workspace = typeof flags.workspace === "string" ? flags.workspace : process.cwd();
   const workspaceRoot = path.resolve(workspace);
-  const stateDir = defaultStateDir();
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
 
   const store = new Store(stateDir);
   const ledger = new Ledger(stateDir);
@@ -303,7 +305,7 @@ async function readStdin(): Promise<string> {
 
 async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<void> {
   const workspace = typeof flags.workspace === "string" ? flags.workspace : process.cwd();
-  const stateDir = defaultStateDir();
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
 
   if (flags.status) {
     console.log(JSON.stringify({ configured: await hasOwnerToken(stateDir), stateDir }));
@@ -344,7 +346,7 @@ async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<v
  * HTTP route that calls approveAction, setKill, or setAuto.
  */
 async function cmdControl(positional: string[], flags: Record<string, string | boolean> = {}): Promise<void> {
-  const stateDir = defaultStateDir();
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
   const [sub, actionId] = positional;
   switch (sub) {
     case "list": {
@@ -523,7 +525,8 @@ async function checkCommand(cmd: string, args: string[]): Promise<string | undef
   }
 }
 
-async function cmdDoctor(): Promise<void> {
+async function cmdDoctor(flags: Record<string, string | boolean>): Promise<void> {
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
   const nodeVersion = process.version;
   const rgVersion = await checkCommand("rg", ["--version"]);
   const gitVersion = await checkCommand("git", ["--version"]);
@@ -533,7 +536,7 @@ async function cmdDoctor(): Promise<void> {
   try {
     // Import lazily so a broken registration path doesn't crash doctor.
     const { createServer } = await import("./server/mcp-server.js");
-    const ctx = await buildToolContext(workspacePath);
+    const ctx = await buildToolContext(workspacePath, stateDir);
     const server = await createServer(ctx);
     const serverAny = server as unknown as {
       _registeredTools?: Record<string, unknown>;
@@ -544,7 +547,6 @@ async function cmdDoctor(): Promise<void> {
     toolCount = `error: ${(err as Error).message}`;
   }
 
-  const stateDir = defaultStateDir();
   const ownerTokenReady = await hasOwnerToken(stateDir);
   const intake = await checkIntakeAvailability();
 
@@ -578,7 +580,7 @@ async function main(): Promise<void> {
       await cmdInit(flags);
       break;
     case "doctor":
-      await cmdDoctor();
+      await cmdDoctor(flags);
       break;
     case "owner-token":
       await cmdOwnerToken(flags);
@@ -588,7 +590,7 @@ async function main(): Promise<void> {
       break;
     default:
       console.error(
-        "usage: chatgpt2codex <serve|init|doctor|owner-token|control> [--workspace <path>] [--active-project-root <path>] [--stdio | --http [--port 7979] [--public-url <origin>]]",
+        "usage: chatgpt2codex <serve|init|doctor|owner-token|control> [--workspace <path>] [--isolated-state-dir <absolute-separate-path>] [--active-project-root <path>] [--stdio | --http [--port 7979] [--public-url <origin>]]",
       );
       process.exitCode = 1;
   }
