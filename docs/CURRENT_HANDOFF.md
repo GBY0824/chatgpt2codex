@@ -25,9 +25,16 @@
   chatgpt/codex/mcp filter; two WScript-based watchdog/self-healing
   candidates are Ready with login/time triggers; an OAuth guard task
   is Disabled. This establishes MULTIPLE plausible supervisors and no
-  unique owner. Expanded source inspection outputs only counts,
-  basename-only ancestry and Startup-presence booleans. Do not disable
-  startup or scheduled tasks without separate cutover approval.
+  unique owner. At 2026-11-02 03:33–03:34 local, both Ready tasks
+  had recent successful runs (LastTaskResult=0), whereas original
+  wscript/powershell/node process creation was **2026-10-17 10:42**.
+  Task Scheduler Operational logging is **disabled** with zero records,
+  so the original start-event identity cannot be reconstructed there.
+  Expanded read-only source inventory now also counts WScript candidate
+  tasks that completed successfully in the previous 15 minutes, but
+  **never assigns ownership** from timing alone. No task arguments,
+  process command lines, private OAuth state or configuration changes.
+  Do not disable startup or scheduled tasks without cutover approval.
 
 ## User's actual objective (nonnegotiable)
 
@@ -65,21 +72,20 @@
 - New candidate cross-process OAuth writer lock `oauth-write.lock`: 3
   independent Node processes register 8 synthetic clients each, **24 retained**;
   stale lock blocks writes. This lock is **NOT honored by production v0.2.0**.
-- **Latest independently verified all-platform source baseline:**
-  `a5b1328cf75d290519d29286aa9d74dc2e09c8d6`,
-  [Actions 41336172569](https://github.com/GBY0824/chatgpt2codex/actions/runs/41336172569)
-  **COMPLETED SUCCESS 3/3**. It includes sanitized process ancestry/
-  current-user Startup inspection on synthetic Windows sockets and
-  preserves all prior OAuth concurrency and 3,480-file checksum tests.
-  **New Scheduled Task metadata and non-attribution source gate**
-  SHA `fc87df3b4335350ba0b3f1c43a344ac5103d777c`,
-  [Actions 41336612917](https://github.com/GBY0824/chatgpt2codex/actions/runs/41336612917)
-  **COMPLETED SUCCESS 3/3** Linux/Windows/macOS. Actual Windows log
-  proves `ONE_MCP_STARTUP_READONLY_INVENTORY_CI_PASS`,
-  ten integrated synthetic recovery cases and `DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=3480`.
-  Windows review-only artifact ID `13095083533`; it is NOT installed
-  on the owner's PC. Later docs-only HEAD commits do not imply
-  fresh CI results.
+- **Latest FULLY VERIFIED code+workflow SHA:**
+  `d7aa9eb0d3ea16d925ed7d0d5ddea4d651ff2644`,
+  [GitHub Actions 41337482236](https://github.com/GBY0824/chatgpt2codex/actions/runs/41337482236)
+  **COMPLETED SUCCESS Linux/Windows/macOS 3/3**. New read-only
+  `Inspect-OneMcpStartupReadOnly.ps1` reports recent successful WScript
+  task candidate COUNT and warns if two+ such candidates coexist, but
+  always refuses to claim unique supervisor identity, actual legacy
+  relaunch safety or production cutover authority. Windows synthetic
+  process test `ONE_MCP_STARTUP_READONLY_INVENTORY_CI_PASS`,
+  10 integrated synthetic Windows recovery cases, and post-upload/
+  download `DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=3480` all PASS.
+  Sealed CI-only artifact ID `13096195606` (expires Nov 8 2026).
+  **NOT installed**. Later docs-only HEAD commits do not imply fresh
+  full CI runs; fetch current PR head and most recent matching workflow.
   Last source auth-lock proof [41334720405](https://github.com/GBY0824/chatgpt2codex/actions/runs/41334720405)
   passed Linux/Windows/macOS 3/3 with 7/7 tests, 24 synthetic OAuth
   client records, and 3,480 sealed files.
@@ -127,10 +133,15 @@
    time-of-check/time-of-unlink race: no atomic unlink-by-handle guarantee.
 3. Audit potential stale lock handling on crash and failure, without
    automatically deleting foreign locks. Preserve existing user tokens.
-4. Only after source tests: obtain **authorized read-only** information
-   on original Windows 7979 service/Task/launcher ownership and exact
-   existing OAuth issuer + state path. Earlier deeper OS inspection was
-   blocked by `APPROVAL_REQUIRED`: never bypass or invent proof.
+4. **Actual original 7979 launch/supervision remains UNVERIFIED**
+   although process ancestry, Startup CMD candidate and two actively
+   recurring WScript watchdog task candidates are directly observed.
+   Task Scheduler operational event history is disabled; do not assume
+   the launch task from current LastRunTime. Any inspection of action
+   arguments/process command lines, source script contents or private
+   OAuth state requires separate owner-authorized scope and must never
+   print secrets. Do not change/suspend either watchdog by guess.
+   Pin issuer and exact state-path identity before cutover.
 5. Complete a rollback-safe private program+config+OAuth continuity plan
    with real owner approval before **any** production port 7979 cutover.
    Old v0.2.0 ignores new lock: NEVER run old and new against same state
