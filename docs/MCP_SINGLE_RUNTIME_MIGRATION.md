@@ -101,3 +101,35 @@ issue `GBY0824/freqtrade-mcp-research#2`. Do not publish owner tokens,
 OAuth codes, callbacks, user data, secret state directories or credential
 snapshots. No automatic PR merge, startup replacement, tunnel exposure,
 background schedules or irreversible deployment.
+
+## Synthetic Windows cutover rehearsal (no owner-PC writes)
+
+The PR Windows CI now runs `node scripts/verify-synthetic-windows-cutover.mjs`
+using Node 22 in a **fresh temp directory made by the test itself**. The
+script accepts no user-supplied paths and never points to
+`%LOCALAPPDATA%\Programs\ChatGPT To Codex`. It does not stop real services
+or access real credentials, clipboard, registry, default state or network.
+
+Its synthetic fixtures model:
+
+- a baseline installed directory and a separate candidate package;
+- an independent state directory (contents must survive unchanged);
+- a SHA-256-backed legacy backup;
+- a copied/staged candidate and digest verification;
+- a two-rename switch with retention of the old tree;
+- exception-triggered recovery that must restore the original byte digest.
+
+Six separately checked scenarios are success, rejected missing installer marker,
+rejected running-service precondition, rejected tampered candidate,
+rollback after the old tree is moved aside, and rollback after the new tree
+is activated. Unexpected error codes and altered state fail the CI job.
+
+**Limits:** this is a deterministic filesystem model, **not** a production
+upgrade installer. It cannot prove Windows locked-file behavior, abrupt power
+loss, process handover, startup service/shortcut migration, user application
+configuration compatibility, actual installed artifact provenance, or stable
+rollback on the owner's original machine. It does **not** satisfy G4/G5/G6 by
+itself and is not authority to change port 7979.
+
+Current source gate result must be taken from the **latest** Actions run for
+this review branch, not an earlier passing commit.
