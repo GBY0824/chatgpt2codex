@@ -1,5 +1,62 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — NEXT-CHAT RESUMPTION: SUPERVISOR CUTOVER SAFETY
+
+**This section supersedes the earlier 03:53 checkpoint for new work.**
+This is a fresh user-invoked chat after limit, not an automatic consumer
+rollover. Production was not cut over.
+
+- Baseline source/head `5148526506f663573772595ec91e164b8873e677`
+  independently checked: Actions
+  [41339034142](https://github.com/GBY0824/chatgpt2codex/actions/runs/41339034142)
+  **COMPLETED SUCCESS 3/3** Linux/macOS/Windows.
+- New independent real Windows read-only Codex inspection, under a
+  tests-only project lease: one original 7979 listener PID; WScript ancestor
+  still present. Two task supervisor candidates are both enabled,
+  logon/time-triggered, use `IgnoreNew`: Emergent-Watchdog Ready,
+  last successful 2026-11-02 04:09 KST, PT2M limit; McpSelfHealing
+  Ready, last successful 04:08 KST, PT5M. The latter was briefly
+  Running in an earlier snapshot. OAuthGuard Disabled with last run
+  2026-09-14 16:04. No task, process, credential or program was modified.
+- The previously proven exact shared WScript script path **does not**
+  identify which task created the historical 2026-10-17 PID. An exploratory
+  textual command-suffix comparison failed to match for all three, but
+  differing quoting/invocation parameters make it unsuitable for unique
+  owner attribution. Do not infer task-to-process identity.
+- Source commit
+  [8e809425](https://github.com/GBY0824/chatgpt2codex/commit/8e809425597560da1a9d0e32dffc769f9b998a6c)
+  adds `scripts/verify-synthetic-supervisor-quiescence.mjs`: 21
+  fail-closed *synthetic* negative cases plus 1 fully satisfied synthetic
+  model; it explicitly **never authorizes production** or accesses Windows
+  owner data. Workflow commit
+  [4162ea17](https://github.com/GBY0824/chatgpt2codex/commit/4162ea1728d54793594e38a5dbb3153f2ce84053)
+  runs the script on hosted Windows CI. Owner-evidence doc commit
+  [991280e6](https://github.com/GBY0824/chatgpt2codex/commit/991280e616644725288f8d70f766a71aea8c71ec)
+  records the new actual task observations.
+- Target Actions
+  [41340462559](https://github.com/GBY0824/chatgpt2codex/actions/runs/41340462559)
+  was **IN PROGRESS** at this checkpoint: source+macOS succeeded,
+  Windows had not completed. **Fetch final jobs and the first failing step
+  if any; fix with a regression rather than retroactively declaring PASS.**
+- Mandatory remaining gates: exact relaunch route coverage and a
+  separately approved live quiescence/restore test; independently verified
+  original issuer/state identity and private OAuth recovery; clear owner
+  approval before touching any 7979 service/task/Startup/program or client
+  registration; followed by original consumer ChatGPT event attestation
+  and two unattended same-Project rollover observations. GOAL actual
+  research executions **0**, genuine rollovers **0/2**.
+- The original v0.2.0 does **not** honor new `oauth-write.lock`.
+  Never let old and candidate write to the same live OAuth state.
+  The synthetic policy's green result is NOT operational readiness.
+- Next chat should read THIS section, inspect exact HEAD/latest CI,
+  verify follow-up Windows route safely, and implement only approved
+  changes. Refresh this handoff and private
+  [research Issue #2](https://github.com/GBY0824/freqtrade-mcp-research/issues/2)
+  at each milestone; keep PR #1 DRAFT / unmerged.
+
+---
+
+
 > **Canonical continuity file for new ChatGPT conversations.** This document is
 > intentionally committed to the research branch so a fresh assistant can
 > identify the goal, code, evidence, gates and exact next action. **Do not
