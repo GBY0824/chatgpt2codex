@@ -401,7 +401,7 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
     const metadata = JSON.parse(discovery.body) as {
       issuer: string; scopes_supported: string[];
     };
-    expect(metadata.issuer).toBe(base);
+    expect(metadata.issuer).toBe(new URL(base).toString());
     expect(metadata.scopes_supported).toEqual(expect.arrayContaining([
       "chatgpt2codex", "chatgpt2codex.goal",
     ]));
