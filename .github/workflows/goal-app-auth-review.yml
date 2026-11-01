@@ -13,6 +13,7 @@ on:
       - "src/cli.ts"
       - "src/auth/oauth-store.ts"
       - "scripts/verify-oauth-writer-lock.mjs"
+      - "scripts/verify-goal-intent-cross-process.mjs"
       - "src/auth/oauth-store-failclosed.test.ts"
       - "scripts/verify-corrupt-oauth-cli-rotation.mjs"
       - "src/state/isolated-state.ts"
@@ -54,6 +55,8 @@ jobs:
         run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts src/state/isolated-state.test.ts src/auth/oauth-store-failclosed.test.ts
       - name: Full source build (no deployment)
         run: npm run build
+      - name: Independent GOAL app-intent writers and stale-lock refusal (synthetic only)
+        run: node scripts/verify-goal-intent-cross-process.mjs .
       - name: Real CLI rotation must refuse corrupt synthetic OAuth store
         run: node scripts/verify-corrupt-oauth-cli-rotation.mjs .
       - name: Separate candidate processes serialize synthetic OAuth client writes
@@ -289,6 +292,8 @@ jobs:
         run: npm run typecheck
       - name: Windows source build only
         run: npm run build
+      - name: Windows GOAL app-intent independent process race (synthetic only)
+        run: node scripts/verify-goal-intent-cross-process.mjs .
       - name: Windows CLI rotation must preserve synthetic owner hash on corrupt OAuth store
         run: node scripts/verify-corrupt-oauth-cli-rotation.mjs .
       - name: Windows separate candidate processes serialize OAuth client writes
