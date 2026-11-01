@@ -106,7 +106,9 @@ async function runCase(name, fault) {
     await fs.cp(installed, backup, { recursive: true, errorOnExist: true, force: false });
     assert.equal(await treeDigest(backup), before, 'SYNTHETIC_BACKUP_MISMATCH');
     await fs.cp(candidate, prepared, { recursive: true, errorOnExist: true, force: false });
-    assert.equal(await treeDigest(prepared), wanted, 'SYNTHETIC_CANDIDATE_HASH_MISMATCH');
+    if (await treeDigest(prepared) !== wanted) {
+      throw new Error('SYNTHETIC_CANDIDATE_HASH_MISMATCH');
+    }
 
     await fs.rename(installed, retired);
     switched = true;
