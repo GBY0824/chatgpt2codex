@@ -248,7 +248,7 @@ async function windowsSharing() {
   try {
     // A short-lived independent PowerShell child holds a truly exclusive
     // Windows kernel file handle; no permission policy changes or bypass.
-    const code = '$path=$args[0];$stream=[System.IO.File]::Open($path,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None);try{[Console]::Out.WriteLine("SYNTHETIC_WINDOWS_LOCK_HELD");[Console]::Out.Flush();[Console]::In.ReadLine()|Out-Null}finally{$stream.Dispose()}';
+    const code = '$path=$args[0];$stream=[System.IO.File]::Open($path,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None);try{[Console]::Out.WriteLine("SYNTHETIC_WINDOWS_LOCK_HELD");[Console]::Out.Flush();Start-Sleep -Seconds 20}finally{$stream.Dispose()}';
     const target=path.join(fx.f.installed,'dist/cli.js');
     blocker=spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',code,target],{
       stdio:['pipe','pipe','pipe'],windowsHide:true});
@@ -257,12 +257,17 @@ async function windowsSharing() {
       blocker.stdout.on('data',b=>{output+=b.toString();if(output.includes('SYNTHETIC_WINDOWS_LOCK_HELD')){clearTimeout(timer);resolve();}});
       blocker.once('exit',()=>{clearTimeout(timer);reject(new Error('FILESHARE_CHILD_EXITED_EARLY'));});
     });
+    assert.equal(blocker.exitCode, null, 'WINDOWS_LOCK_HOLDER_EXITED_BEFORE_PROBE');
+    let deniedRead = false;
+    try { await fs.readFile(target); }
+    catch (error) { deniedRead = ['EACCES','EPERM','EBUSY'].includes(error.code); }
+    assert(deniedRead, 'WINDOWS_FILESHARE_KERNEL_READ_WAS_NOT_DENIED');
     const denied=run('upgrade',fx);
     assert.equal(denied.status,DENIED,'Windows share-lock did not deny upgrade');
     assert.equal(await digest(fx.f.state),fx.j.state);
     assert.equal(await has(fx.f.retired),false,'Original moved while locked');
-    blocker.stdin.write('\n');blocker.stdin.end();
-    await new Promise(resolve=>blocker.once('exit',resolve));
+    blocker.kill();
+    if (blocker.exitCode === null) await new Promise(resolve=>blocker.once('exit',resolve));
     assert.equal(run('upgrade',fx).status,0,'Upgrade did not work after FileShare release');
     assert.equal(run('recover',fx).status,0,'Rollback did not work after FileShare release');
     assert.equal(await digest(fx.f.installed),fx.j.original);
