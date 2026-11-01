@@ -73,3 +73,39 @@ jobs:
         run: npm run typecheck
       - name: Windows source build only
         run: npm run build
+      - name: Package isolated Windows staging bundle (no deployment)
+        shell: pwsh
+        run: |
+          npm prune --omit=dev --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw "Production dependency pruning failed" }
+          New-Item -ItemType Directory -Path staging-release -Force | Out-Null
+          Copy-Item -Path dist -Destination staging-release\dist -Recurse
+          Copy-Item -Path node_modules -Destination staging-release\node_modules -Recurse
+          Copy-Item -Path package.json -Destination staging-release\package.json
+          Copy-Item -Path package-lock.json -Destination staging-release\package-lock.json
+          @'
+          GOAL APP WINDOWS ISOLATED SOURCE BUNDLE
+          NO CREDENTIALS. NO OWNER TOKEN. NO INSTALLED SERVICE.
+          This is a review-only Node 22+ build generated in a disposable
+          GitHub-hosted Windows runner, NOT an update to the user PC.
+          Never start with the production state directory or existing port 7979.
+          Use a separate temporary workspace/state/loopback endpoint only.
+          chatgpt2codex.goal records APP INTENT ONLY; no P3 authorization,
+          research dispatch or consumer ChatGPT rollover is granted.
+          '@ | Set-Content -Path staging-release\STAGING_README.txt -Encoding UTF8
+          $root = (Resolve-Path staging-release).Path
+          $entries = Get-ChildItem staging-release -Recurse -File | Sort-Object FullName
+          $lines = foreach ($file in $entries) {
+            $relative = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
+            $sha = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            "$sha  $relative"
+          }
+          $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
+          if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
+      - name: Upload isolated Windows bundle (not installed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-release/
+          retention-days: 7
+          if-no-files-found: error
