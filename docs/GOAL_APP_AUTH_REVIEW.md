@@ -1,5 +1,41 @@
 # GOAL app-command OAuth review (not deployed)
 
+## 2026-11-02 KST — real independent Node processes, synthetic GOAL state only
+
+Candidate script
+`scripts/verify-goal-intent-cross-process.mjs` at source
+[commit f02d615bfa660dd593383fb27773faa52e968a04](https://github.com/GBY0824/chatgpt2codex/commit/f02d615bfa660dd593383fb27773faa52e968a04)
+runs **3 separate Node.js child processes per round**, 4 rounds,
+against new random synthetic `goal-app-command-intent.json`
+directories. Every child presents synthetic APP-scope auth and the
+same `expectedRevision=0` while attempting `ON`.
+The test requires exactly 1 committed intent (revision 1) per
+round, and 2 rejected/stale or lock-busy attempts (12 processes in
+total). It verifies the lock marker is removed after normal
+completion. Another child attempts to write with a deliberately
+stale foreign marker and must fail without removing it or creating
+the GOAL ledger. The test **never touches any owner directory,
+OAuth client/token, browser CHAT, Scheduler task or installed MCP**.
+
+[Workflow 5c2f392ee2c74ae180e1407805143b650e164e56](https://github.com/GBY0824/chatgpt2codex/commit/5c2f392ee2c74ae180e1407805143b650e164e56)
+runs this real process-spawn synthetic regression against the
+compiled candidate on both Linux and native Windows after
+`npm run build`. The output asserts
+`SYNTHETIC_GOAL_CROSS_PROCESS_INTENT_EXCLUSION_PASS`,
+`noEffectsAuthorized=true`, and
+`originalConsumerTurnAttested=false`.
+New [Actions 41362146220](https://github.com/GBY0824/chatgpt2codex/actions/runs/41362146220)
+was **IN PROGRESS** on initial receipt. Check the exact SHA's
+full Linux/Windows/macOS results before declaring PASS.
+
+Even an all-green result would prove only **candidate app intent
+ledger safety**, not authentic consumer CHAT event ingestion, not
+research execution approval, and not unattended rollover.
+Real GOAL execution 0; ordinary Project CHAT automatic rollover 0/2.
+
+---
+
+
 ## 2026-11-02 KST — GOAL intent ledger lock ownership repair (source only)
 
 The previous source-only `goalAppCommand` wrote app-level intent
