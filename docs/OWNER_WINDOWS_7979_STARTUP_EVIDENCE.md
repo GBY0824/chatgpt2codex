@@ -48,9 +48,11 @@ credentials, start a second MCP against the same OAuth state, or merge PR #1.
   launched or currently control this exact PID.
 - A targeted query for Task Scheduler operational event IDs 100/102/
   200/201 in the original start window **2026-10-17 10:40-10:45**
-  returned zero records; available evidence cannot distinguish no
-  event from inaccessible/disabled/expired logs. Do not infer launcher
-  identity from missing event logs.
+  returned zero records. A subsequent **read-only log-metadata check**
+  verified that `Microsoft-Windows-TaskScheduler/Operational` logging is
+  **disabled**, with `RecordCount=0`. Thus this log cannot corroborate
+  historical supervisor identity. No logging setting was changed or
+  enabled. Do not infer launcher identity from missing event logs.
 - No process command-line, Task Scheduler action arguments, OAuth files,
   owner token values, startup settings or other service configuration
   was modified; no credentials were printed.
