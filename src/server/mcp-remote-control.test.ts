@@ -101,7 +101,7 @@ async function registerOAuthClient(baseUrl: string): Promise<{ clientId: string;
   return { clientId: String(body.client_id), redirectUri };
 }
 
-async function getMcpAccessToken(baseUrl: string): Promise<string> {
+async function getMcpAccessToken(baseUrl: string, scopes = "chatgpt2codex"): Promise<string> {
   const client = await registerOAuthClient(baseUrl);
   const verifier = randomPkceVerifier();
   const url = new URL("/authorize", baseUrl);
@@ -110,7 +110,7 @@ async function getMcpAccessToken(baseUrl: string): Promise<string> {
   url.searchParams.set("redirect_uri", client.redirectUri);
   url.searchParams.set("code_challenge", pkceChallenge(verifier));
   url.searchParams.set("code_challenge_method", "S256");
-  url.searchParams.set("scope", "chatgpt2codex");
+  url.searchParams.set("scope", scopes);
   url.searchParams.set("state", "unit-test-state");
   url.searchParams.set("resource", `${baseUrl}/mcp`);
 
@@ -217,4 +217,63 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent?.lease?.preset).toBe("full-write");
   }, 20_000);
+  it("enforces OAuth goal scope through the real HTTP MCP transport and fences stale ON", async () => {
+    const ctx = makeCtx(stateDir, projectRoot);
+    const app = await startApp(ctx);
+    stop = app.stop;
+
+    // A previously authorized basic-scope client is still allowed to use
+    // existing tools but must NOT control the distinct APP GOAL intent.
+    const defaultToken = await getMcpAccessToken(app.baseUrl);
+    client = await connectMcpClient(app.baseUrl, defaultToken);
+    const oldScope = (await client.callTool({
+      name: "goal_app_command",
+      arguments: { action: "ON", expectedRevision: 0 },
+    })) as { isError?: boolean; structuredContent?: { code?: string } };
+    expect(oldScope.isError).toBe(true);
+    expect(oldScope.structuredContent?.code).toBe("APP_GOAL_OAUTH_SCOPE_OR_AUTH_MISSING");
+    await client.close();
+    client = undefined;
+
+    // Explicit owner-approved additional OAuth scope: server-verified
+    // authInfo, not owner identity fields supplied as model tool inputs.
+    const goalToken = await getMcpAccessToken(
+      app.baseUrl, "chatgpt2codex chatgpt2codex.goal",
+    );
+    client = await connectMcpClient(app.baseUrl, goalToken);
+    const status = (await client.callTool({
+      name: "goal_app_command", arguments: { action: "status" },
+    })) as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    expect(status.isError).toBeFalsy();
+    expect(status.structuredContent).toMatchObject({
+      code: "APP_GOAL_INTENT_STATUS_ONLY", requestedMode: "OFF",
+      revision: 0, researchExecutionAuthorized: false, effectsIssued: 0,
+    });
+    const on = (await client.callTool({
+      name: "goal_app_command",
+      arguments: { action: "ON", expectedRevision: 0 },
+    })) as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    expect(on.isError).toBeFalsy();
+    expect(on.structuredContent).toMatchObject({
+      code: "APP_GOAL_INTENT_RECORDED_ONLY", requestedMode: "ON",
+      revision: 1, researchExecutionAuthorized: false,
+      originalChatTurnAttested: false, effectsIssued: 0,
+    });
+    const off = (await client.callTool({
+      name: "goal_app_command", arguments: { action: "OFF" },
+    })) as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    expect(off.structuredContent).toMatchObject({
+      code: "APP_GOAL_INTENT_RECORDED_ONLY", requestedMode: "OFF",
+      revision: 2, researchExecutionAuthorized: false, effectsIssued: 0,
+    });
+    const staleOn = (await client.callTool({
+      name: "goal_app_command",
+      arguments: { action: "ON", expectedRevision: 1 },
+    })) as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    expect(staleOn.structuredContent).toMatchObject({
+      code: "APP_GOAL_REVISION_STALE", requestedMode: "OFF",
+      researchExecutionAuthorized: false, effectsIssued: 0,
+    });
+  }, 25_000);
+
 });
