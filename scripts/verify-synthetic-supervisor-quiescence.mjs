@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 
 const liveMainTaskName = "ChatGPT To Codex MCP - Tailscale";
+const requiredScriptRoles = ["watchdog", "main-launcher", "shared-wscript-dispatcher", "startup-entry"];
 const requiredTasks = [
   liveMainTaskName,
   "ChatGPTToCodexEmergent-Watchdog",
@@ -20,6 +21,31 @@ function assess(plan) {
   if (plan.ownerCutoverApproval !== true) block("OWNER_CUTOVER_APPROVAL_REQUIRED");
   if (plan.originalTaskEngineOwnerVerified !== true)
     block("LIVE_MAIN_TASK_ENGINE_OWNER_UNVERIFIED");
+  // A similarly named GitHub research script is NOT proof of what is
+  // installed. Owner observation found a different watchdog Git blob and
+  // different direct lifecycle command references. Pin each deployed
+  // executable/script separately and tie behavioral review to SAME bytes.
+  const artifacts = plan.installedScriptAudits;
+  if (!Array.isArray(artifacts) ||
+      artifacts.length !== requiredScriptRoles.length ||
+      new Set(artifacts.map(x => x?.role)).size !== requiredScriptRoles.length ||
+      requiredScriptRoles.some(role => !artifacts.some(x => x?.role === role))) {
+    block("INSTALLED_SCRIPT_AUDIT_INVENTORY_INCOMPLETE");
+  } else {
+    for (const entry of artifacts) {
+      if (typeof entry.observedSha256 !== "string" ||
+          !/^[a-f0-9]{64}$/.test(entry.observedSha256) ||
+          typeof entry.auditedSha256 !== "string" ||
+          entry.observedSha256 !== entry.auditedSha256) {
+        block("INSTALLED_SCRIPT_AUDITED_SHA_MISMATCH:" + entry.role);
+      }
+      if (entry.deployedFileVerified !== true ||
+          entry.sourceBehaviorReviewed !== true ||
+          entry.relaunchAndDispatchModesReviewed !== true) {
+        block("INSTALLED_SCRIPT_MODE_UNVERIFIED:" + entry.role);
+      }
+    }
+  }
   if (plan.schedulerActionScanComplete !== true ||
       !Number.isSafeInteger(plan.enumeratedActions) || plan.enumeratedActions < 0 ||
       !Number.isSafeInteger(plan.enumeratedWscriptActions) || plan.enumeratedWscriptActions < 0 ||
@@ -101,6 +127,14 @@ const approvedFixture = {
   ownerQuiescenceApproval: true,
   ownerCutoverApproval: true,
   originalTaskEngineOwnerVerified: true,
+  // All hashes and role attestations below are intentionally SYNTHETIC,
+  // NOT actual owner's script hashes or a real completed production audit.
+  installedScriptAudits: requiredScriptRoles.map((role, i) => ({
+    role, observedSha256: (i + 1).toString(16).repeat(64),
+    auditedSha256: (i + 1).toString(16).repeat(64),
+    deployedFileVerified: true, sourceBehaviorReviewed: true,
+    relaunchAndDispatchModesReviewed: true,
+  })),
   // Seven is just this synthetic fixture's size, not a production assumption.
   enumeratedActions: 236,
   enumeratedWscriptActions: 9,
@@ -155,6 +189,14 @@ const scenarios = [
   ["LIVE_MAIN_LOGON_TRIGGER_ACTIVE", p => { p.tasks[0].allScheduledTriggersDisabledVerified = false; }, "LIVE_MAIN_LOGON_TRIGGER_NOT_SUPPRESSED"],
   ["LIVE_MAIN_FALSIFIED_AS_UNRELATED", p => { p.tasks[0].routeRole = "verified-unrelated"; p.tasks[0].noLegacyRelaunchProof = true; p.tasks[0].noSharedOAuthWriterProof = true; }, "LIVE_MAIN_TASK_MUST_REMAIN_LEGACY_RELAUNCHER"],
   ["LIVE_MAIN_TASK_OMITTED", p => { p.tasks.shift(); p.enumeratedMatchingTaskCount -= 1; }, "TASK_INVENTORY_NOT_EXACT"],
+  ["WATCHDOG_AUDIT_MISSING", p => { p.installedScriptAudits.shift(); }, "INSTALLED_SCRIPT_AUDIT_INVENTORY_INCOMPLETE"],
+  ["WATCHDOG_AUDIT_DUPLICATED", p => { p.installedScriptAudits[1].role = "watchdog"; }, "INSTALLED_SCRIPT_AUDIT_INVENTORY_INCOMPLETE"],
+  ["WATCHDOG_GITHUB_SOURCE_NOT_INSTALLED", p => { p.installedScriptAudits[0].auditedSha256 = "f".repeat(64); }, "INSTALLED_SCRIPT_AUDITED_SHA_MISMATCH:watchdog"],
+  ["WATCHDOG_AUDIT_HASH_UNSET", p => { delete p.installedScriptAudits[0].observedSha256; }, "INSTALLED_SCRIPT_AUDITED_SHA_MISMATCH:watchdog"],
+  ["WATCHDOG_CONTENT_UNREVIEWED", p => { p.installedScriptAudits[0].sourceBehaviorReviewed = false; }, "INSTALLED_SCRIPT_MODE_UNVERIFIED:watchdog"],
+  ["MAIN_LAUNCHER_UNPINNED", p => { p.installedScriptAudits[1].observedSha256 = "invalid"; }, "INSTALLED_SCRIPT_AUDITED_SHA_MISMATCH:main-launcher"],
+  ["WRAPPER_DISPATCH_UNVERIFIED", p => { p.installedScriptAudits[2].relaunchAndDispatchModesReviewed = false; }, "INSTALLED_SCRIPT_MODE_UNVERIFIED:shared-wscript-dispatcher"],
+  ["STARTUP_ENTRY_MODE_UNVERIFIED", p => { p.installedScriptAudits[3].deployedFileVerified = false; }, "INSTALLED_SCRIPT_MODE_UNVERIFIED:startup-entry"],
   ["SECOND_WATCHDOG_ACTIVE", p => { p.tasks[2].running = true; }, "TASK_NOT_QUIESCED:ChatGPTToCodexMcpSelfHealing"],
   ["DISABLED_GUARD_UNVERIFIED", p => { p.tasks[3].disabledVerified = false; }, "TASK_NOT_QUIESCED:ChatGPTToCodexOAuthGuard"],
   ["SHARED_SCRIPT_BUT_UNVERIFIED_IDENTITY", p => { p.tasks[1].actionIdentityVerified = false; }, "TASK_IDENTITY_UNVERIFIED:ChatGPTToCodexEmergent-Watchdog"],
