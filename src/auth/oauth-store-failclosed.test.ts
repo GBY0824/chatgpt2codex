@@ -55,6 +55,7 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
       await expect(store.saveTokenPair(pair)).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
       await expect(store.deleteAccessToken(pair.accessTokenHash)).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
       await expect(store.deleteRefreshToken(pair.refreshTokenHash)).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+      await expect(store.assertReadable()).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
       await expect(store.clearAll()).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
       expect(await readFile(oauthFile())).toEqual(before);
     });
