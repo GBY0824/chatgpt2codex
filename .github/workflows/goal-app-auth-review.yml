@@ -12,6 +12,7 @@ on:
       - "src/server/mcp-remote-control.test.ts"
       - "src/cli.ts"
       - "src/auth/oauth-store.ts"
+      - "scripts/verify-oauth-writer-lock.mjs"
       - "src/auth/oauth-store-failclosed.test.ts"
       - "scripts/verify-corrupt-oauth-cli-rotation.mjs"
       - "src/state/isolated-state.ts"
@@ -54,6 +55,8 @@ jobs:
         run: npm run build
       - name: Real CLI rotation must refuse corrupt synthetic OAuth store
         run: node scripts/verify-corrupt-oauth-cli-rotation.mjs .
+      - name: Separate candidate processes serialize synthetic OAuth client writes
+        run: node scripts/verify-oauth-writer-lock.mjs .
       # Verify the candidate source is an additive upgrade of the ACTUAL
       # checked-out baseline main; do not trust a hand-maintained tool list.
       - name: Checkout current legacy main for compatibility contract
@@ -259,6 +262,8 @@ jobs:
         run: npm run build
       - name: Windows CLI rotation must preserve synthetic owner hash on corrupt OAuth store
         run: node scripts/verify-corrupt-oauth-cli-rotation.mjs .
+      - name: Windows separate candidate processes serialize OAuth client writes
+        run: node scripts/verify-oauth-writer-lock.mjs .
       - name: Windows CLI isolated-state nonproduction smoke
         shell: pwsh
         run: |
