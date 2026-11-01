@@ -16,7 +16,11 @@ function assess(plan) {
   if (plan.otherAutostartRoutesExcluded !== true) block("UNKNOWN_RELAUNCH_ROUTE");
   if (plan.ownerQuiescenceApproval !== true) block("OWNER_QUIESCENCE_APPROVAL_REQUIRED");
   if (plan.ownerCutoverApproval !== true) block("OWNER_CUTOVER_APPROVAL_REQUIRED");
-  if (plan.schedulerActionScanComplete !== true || plan.enumeratedActions < plan.enumeratedWscriptActions)
+  if (plan.schedulerActionScanComplete !== true ||
+      !Number.isSafeInteger(plan.enumeratedActions) || plan.enumeratedActions < 0 ||
+      !Number.isSafeInteger(plan.enumeratedWscriptActions) || plan.enumeratedWscriptActions < 0 ||
+      plan.enumeratedActions < plan.enumeratedWscriptActions ||
+      plan.enumeratedWscriptActions < plan.enumeratedMatchingTaskCount)
     block("ACTION_SCAN_INCOMPLETE");
   if (plan.unparseableWscriptActions !== 0) block("ACTION_SCAN_UNPARSEABLE");
   // The three named candidates are NOT the whole universe. Read-only owner
@@ -133,6 +137,10 @@ const scenarios = [
   ["WRONG_SHARED_SCRIPT_COUNT", p => { p.enumeratedMatchingTaskCount = 3; }, "TASK_INVENTORY_NOT_EXACT"],
   ["UNPARSEABLE_ACTION", p => { p.unparseableWscriptActions = 1; }, "ACTION_SCAN_UNPARSEABLE"],
   ["INCOMPLETE_ACTION_SCAN", p => { p.schedulerActionScanComplete = false; }, "ACTION_SCAN_INCOMPLETE"],
+  ["MISSING_TOTAL_ACTION_COUNT", p => { delete p.enumeratedActions; }, "ACTION_SCAN_INCOMPLETE"],
+  ["MISSING_WSCRIPT_ACTION_COUNT", p => { delete p.enumeratedWscriptActions; }, "ACTION_SCAN_INCOMPLETE"],
+  ["NEGATIVE_ACTION_COUNT", p => { p.enumeratedActions = -1; }, "ACTION_SCAN_INCOMPLETE"],
+  ["IMPOSSIBLE_MATCH_COUNT", p => { p.enumeratedWscriptActions = 6; }, "ACTION_SCAN_INCOMPLETE"],
   ["UNKNOWN_TASK_ROLE", p => { p.tasks[4].routeRole = "unknown"; }, "TASK_RELAUNCH_ROLE_UNVERIFIED:SyntheticSharedRouteB"],
   ["FALSE_UNRELATED_CLAIM", p => { p.tasks[4].routeRole = "verified-unrelated"; }, "UNRELATED_ROUTE_ISOLATION_UNVERIFIED:SyntheticSharedRouteB"],
   ["STARTUP_ENTRY_STILL_ENABLED", p => { p.startupEntryDisabledVerified = false; }, "STARTUP_RELAUNCH_STILL_POSSIBLE"],
@@ -164,5 +172,6 @@ for (const [name, mutate, reason] of scenarios) {
   assert.ok(result.blockers.includes(reason), name + ": " + result.blockers.join(", "));
   assert.equal(result.productionCutoverAuthorized, false, name);
 }
-console.log("SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS cases=" + (scenarios.length + 1));
+console.log("SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS cases=" + (scenarios.length + 2) +
+  " negativeCases=" + scenarios.length + " positiveFixtures=2");
 console.log("productionCutoverAuthorized=false ownerHostTouched=false oauthRead=false tasksModified=false");
