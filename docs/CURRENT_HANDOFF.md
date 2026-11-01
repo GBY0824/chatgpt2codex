@@ -18,11 +18,16 @@
   next ancestor `wscript.exe`; the current-user Startup directory contains
   filename `ChatGPTToCodexEmergent.cmd`. This is direct **process ancestry
   plus a plausible startup entry**, NOT yet proven supervisor/cutover owner.
-  The startup file contents, process arguments and owner tokens were
-  **not** read. New owner/startup read-only source inventory reports
-  basename-only ancestry and filename-presence booleans; never prints
-  commands/credentials or authorizes a service change. All-user Startup
-  folder had no matching candidate name.
+  The startup CMD was later checked for **boolean command-type
+  patterns only**, not printed: it references PowerShell but did not
+  directly mention WScript. No process command lines, task arguments
+  or owner tokens were read. **13** scheduler task names matched the
+  chatgpt/codex/mcp filter; two WScript-based watchdog/self-healing
+  candidates are Ready with login/time triggers; an OAuth guard task
+  is Disabled. This establishes MULTIPLE plausible supervisors and no
+  unique owner. Expanded source inspection outputs only counts,
+  basename-only ancestry and Startup-presence booleans. Do not disable
+  startup or scheduled tasks without separate cutover approval.
 
 ## User's actual objective (nonnegotiable)
 
@@ -60,13 +65,19 @@
 - New candidate cross-process OAuth writer lock `oauth-write.lock`: 3
   independent Node processes register 8 synthetic clients each, **24 retained**;
   stale lock blocks writes. This lock is **NOT honored by production v0.2.0**.
-- **Latest fully verified code/test checkpoint:** source SHA
-  `d220dbbf3c38a4a6e451b729b8307edbaca2fa48`,
-  [GitHub Actions 41334720405](https://github.com/GBY0824/chatgpt2codex/actions/runs/41334720405):
-  status **COMPLETED SUCCESS**, Linux/Windows/macOS **3/3 jobs PASS**.
-  Linux and Windows logs each prove **7 OAuth fail-closed tests PASS**, 24
-  synthetic cross-process clients retained, and stale lock/owner-token
-  guard. Windows review archive upload/download validates **3,480 files**.
+- **Latest independently verified all-platform source baseline:**
+  `a5b1328cf75d290519d29286aa9d74dc2e09c8d6`,
+  [Actions 41336172569](https://github.com/GBY0824/chatgpt2codex/actions/runs/41336172569)
+  **COMPLETED SUCCESS 3/3**. It includes sanitized process ancestry/
+  current-user Startup inspection on synthetic Windows sockets and
+  preserves all prior OAuth concurrency and 3,480-file checksum tests.
+  New Scheduled Task metadata counts and non-attribution CI on source
+  SHA `fc87df3b4335350ba0b3f1c43a344ac5103d777c`
+  ([Actions 41336612917](https://github.com/GBY0824/chatgpt2codex/actions/runs/41336612917))
+  were **in progress at this handoff edit**; check before claiming PASS.
+  Last source auth-lock proof [41334720405](https://github.com/GBY0824/chatgpt2codex/actions/runs/41334720405)
+  passed Linux/Windows/macOS 3/3 with 7/7 tests, 24 synthetic OAuth
+  client records, and 3,480 sealed files.
 - **Latest writer-lock ownership repair:** every claim has a random nonce
   and file identity; cleanup refuses to delete a modified/replaced claim
   (`OAUTH_WRITE_LOCK_OWNERSHIP_LOST`). CI negative test demonstrates
