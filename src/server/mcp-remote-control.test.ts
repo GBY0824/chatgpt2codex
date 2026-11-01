@@ -276,4 +276,57 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
     });
   }, 25_000);
 
+  it("rechecks per-request OAuth scope when a low-scope bearer reuses a GOAL-scoped MCP session", async () => {
+    const ctx = makeCtx(stateDir, projectRoot);
+    const app = await startApp(ctx);
+    stop = app.stop;
+
+    const goalToken = await getMcpAccessToken(app.baseUrl, "chatgpt2codex chatgpt2codex.goal");
+    const basicToken = await getMcpAccessToken(app.baseUrl, "chatgpt2codex");
+    const transport = new StreamableHTTPClientTransport(new URL(app.baseUrl + "/mcp"), {
+      requestInit: { headers: { authorization: "Bearer " + goalToken } },
+    });
+    client = new Client({ name: "per-request-scope-regression", version: "0.0.0" });
+    await client.connect(transport);
+    const sessionId = transport.sessionId;
+    expect(sessionId).toBeTruthy();
+
+    const before = await client.callTool({
+      name: "goal_app_command", arguments: { action: "status" },
+    });
+    expect(before.structuredContent).toMatchObject({ requestedMode: "OFF", revision: 0 });
+
+    // The session was created with a GOAL-scoped owner token. A second
+    // request carrying a basic-only bearer must not inherit that privilege.
+    const response = await fetch(app.baseUrl + "/mcp", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + basicToken,
+        "mcp-session-id": String(sessionId),
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0", id: 9731, method: "tools/call",
+        params: { name: "goal_app_command", arguments: { action: "ON", expectedRevision: 0 } },
+      }),
+    });
+    const raw = await response.text();
+    const dataLines = raw.split(/\r?\n/u).filter((line) => /^data:\s*/u.test(line));
+    const decoded = dataLines.length
+      ? JSON.parse(dataLines[dataLines.length - 1]!.replace(/^data:\s*/u, ""))
+      : raw.trim().startsWith("{") ? JSON.parse(raw) : null;
+    const result = decoded?.result;
+    expect(
+      response.status === 401 ||
+      (result?.isError === true &&
+       result?.structuredContent?.code === "APP_GOAL_OAUTH_SCOPE_OR_AUTH_MISSING"),
+    ).toBe(true);
+
+    const after = await client.callTool({
+      name: "goal_app_command", arguments: { action: "status" },
+    });
+    expect(after.structuredContent).toMatchObject({ requestedMode: "OFF", revision: 0 });
+  }, 25_000);
+
 });
