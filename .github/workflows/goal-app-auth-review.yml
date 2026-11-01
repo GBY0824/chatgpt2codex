@@ -25,9 +25,22 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: TypeScript full-project typecheck
+      - name: Full TypeScript typecheck
         run: npm run typecheck
-      - name: Native Vitest regressions
-        run: npm test
-      - name: Build source (never deploy)
+      - name: GOAL intent and MCP tool catalog regressions
+        run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts
+      - name: Full source build (no deployment)
         run: npm run build
+
+  macos-control-regressions:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Existing full suite on native macOS
+        run: npm test
