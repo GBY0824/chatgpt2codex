@@ -305,6 +305,9 @@ async function cmdInit(flags: Record<string, string | boolean>): Promise<void> {
       "chatgpt2codex init: owner token already set (pass --rotate-owner-token to generate a new one).",
     );
   } else {
+    // An existing broken OAuth file must not cause a new owner token to
+    // be installed before the associated OAuth reset refuses the write.
+    await new JsonOAuthStore(stateDir).assertReadable();
     const ownerToken = generateOwnerToken();
     await storeOwnerToken(stateDir, ownerToken);
     console.error("");
@@ -341,6 +344,7 @@ async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<v
 
   if (flags["set-stdin"]) {
     const token = (await readStdin()).trim();
+    await new JsonOAuthStore(stateDir).assertReadable();
     await storeOwnerToken(stateDir, token);
     await new JsonOAuthStore(stateDir).clearAll();
     console.log(JSON.stringify({ configured: true, rotated: true, stateDir }));
@@ -348,6 +352,7 @@ async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<v
   }
 
   if (flags.generate || flags.rotate) {
+    await new JsonOAuthStore(stateDir).assertReadable();
     const ownerToken = generateOwnerToken();
     await storeOwnerToken(stateDir, ownerToken);
     await new JsonOAuthStore(stateDir).clearAll();
