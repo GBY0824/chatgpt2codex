@@ -1,0 +1,33 @@
+name: GOAL app auth review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/server/goal-app-intent.ts"
+      - "src/server/goal-app-intent.test.ts"
+      - "src/server/http.ts"
+      - "src/server/tools.ts"
+      - "src/server/tools-catalog.test.ts"
+      - ".github/workflows/goal-app-auth-review.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: TypeScript full-project typecheck
+        run: npm run typecheck
+      - name: Native Vitest regressions
+        run: npm test
+      - name: Build source (never deploy)
+        run: npm run build
