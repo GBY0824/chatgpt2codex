@@ -235,6 +235,46 @@ command lines, arguments, script paths, or token values were output.
 Verify the revision's matching GitHub Actions workflow before
 claiming PASS.
 
+### Stronger live Task Scheduler instance proof: the original 7979 engine is Tailscale task-owned
+
+A **read-only** Windows Task Scheduler COM `Schedule.Service` query retrieved
+`GetInstances(0)` for the currently Running
+`ChatGPT To Codex MCP - Tailscale` registered task, then compared the
+running instance's `EnginePID` directly with the original 7979 listener
+process's independently observed WScript ancestor PID **in memory**.
+The result was `same=true` with exactly **one** running instance.
+A second independent read-only check reproduced `same=true` for
+Tailscale, while current `GetInstances(0)` counts for the named
+OSINT/Watchdog/SelfHealing tasks were 0 and their comparisons false.
+No PIDs, raw command lines, arguments, script paths or credentials
+were emitted; none of these processes or tasks were changed.
+
+**Interpretation:** the currently live original 7979 WScript ancestor
+is confirmed to be the engine instance associated with the named
+Tailscale scheduled task. This is much stronger **live process-to-task
+association** than matching names, script paths, arguments or run times.
+It does **not** by itself establish every independent watchdog that
+could relaunch port 7979 after its process exits or the full program
+impact of disabling these tasks. Task Scheduler historical Operational
+logging remains disabled; Task LastRunTime disagreement must not be
+silently reinterpreted as a historical start event.
+
+Additional direct task SETTINGS metadata (read-only):
+- `ChatGPT To Codex MCP - Tailscale`: Running; Logon trigger;
+  `RestartCount=5`, `RestartInterval=PT1M`,
+  `ExecutionTimeLimit=PT0S`, `MultipleInstances=IgnoreNew`.
+- `ChatGPTToCodexEmergent-Watchdog`: Ready; Logon+Time triggers;
+  `RestartCount=0`, `ExecutionTimeLimit=PT2M`.
+- `ChatGPTToCodexMcpSelfHealing`: Ready; Logon+Time triggers;
+  `RestartCount=0`, `ExecutionTimeLimit=PT5M`.
+
+**Practical implication:** an eventual owner-approved migration must
+account for the actually running Tailscale task instance and its
+5 × 1-minute restart policy **as well as** independently recurring
+watchdog and Startup routes. Disabling only one named watchdog
+cannot establish safe quiescence. This is an inventory finding,
+not permission to disable, stop or overwrite anything.
+
 ## Next approval and safety gate
 
 Before an in-place single-MCP upgrade, identify who actually supervises
