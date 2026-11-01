@@ -14,8 +14,8 @@ This branch modifies the **source fork only**. It does not replace or restart th
 
 ## Review gates
 
-1. `npm ci`, `npm run typecheck`, `npm test`, `npm run build` in a complete source checkout. This branch has a PR-only GitHub Actions workflow; a green run must be checked before any merge.
-2. Additional OAuth integration test against authenticated `/mcp`: no credential, old-scope token, wrong resource and expired token fail; newly owner-consented goal scope can read status/record ON/OFF; repeated stale ON fails after OFF. Do not paste tokens in ChatGPT.
+1. **Verified GitHub Actions run #41283091691: SUCCESS**. Linux Node 22 `npm ci`, full `npm run typecheck`, 20/20 GOAL/MCP scoped tests, full `npm run build`; macOS Node 22 complete `npm test` 415/415 PASS across 38 files.
+2. **CI verified real local HTTP OAuth + MCP integration**: an old basic-only OAuth token cannot call `goal_app_command`, a separately authorized goal-scoped token can read status and record ON/OFF, and stale ON is blocked after OFF. The isolated test uses authenticated `http://127.0.0.1` loopback; production Funnel remains HTTPS, and no live owner token or user production session was used. Additional non-loopback TLS staging remains necessary before real production rollout.
 3. Owner-approved Windows deployment to a staging runtime, original binary backup, explicit rollback, and separate installed-version confirmation. Do NOT overwrite `C:\Users\khosw\AppData\Local\Programs\ChatGPT To Codex\dist\` during code review.
 4. Only then seek lawful original P3 owner/lineage clearance and independently authenticated one-work-permit dispatch. No consumer ChatGPT Project CHAT provider-turn proof is supplied by this OAuth tool: ordinary unattended rollover contract remains 0/2.
 
