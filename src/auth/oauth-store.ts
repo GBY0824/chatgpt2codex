@@ -1,5 +1,5 @@
 import { randomUUID, createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile, chmod, open, unlink } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile, chmod, open, unlink, lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
@@ -150,14 +150,35 @@ export class JsonOAuthStore {
         await new Promise<void>((resolve) => setTimeout(resolve, 50));
       }
     }
+    const claim = JSON.stringify({
+      version: 1, pid: process.pid, createdAt: Date.now(), nonce: randomUUID(),
+    });
+    // A filename alone is NOT proof of ownership: another process/operator
+    // could replace this path while work is running. Verify original identity
+    // before unlinking, and leave any unexpected claim untouched.
+    const claimIdentity = await handle.stat();
     try {
-      await handle.writeFile(JSON.stringify({ version: 1, pid: process.pid, createdAt: Date.now() }));
+      await handle.writeFile(claim);
       await handle.sync();
       return await fn();
     } finally {
       await handle.close();
-      // Remove only the claim created by THIS process, after all async work
-      // is complete. Other processes never remove another writer's marker.
+      let stillOwned = false;
+      try {
+        const [saved, pathIdentity] = await Promise.all([
+          readFile(this.writerLockPath, "utf8"),
+          lstat(this.writerLockPath),
+        ]);
+        stillOwned = saved === claim && pathIdentity.isFile() &&
+          pathIdentity.dev === claimIdentity.dev &&
+          pathIdentity.ino === claimIdentity.ino;
+      } catch {
+        // Missing/replaced/unknown lock: never delete a different claim.
+      }
+      if (!stillOwned) throw new Error("OAUTH_WRITE_LOCK_OWNERSHIP_LOST");
+      // This is a best-effort ownership fence, not an atomic OS unlink-by-handle.
+      // External arbitrary file replacement between check and unlink remains
+      // a race; owner-authorized filesystem isolation is required for cutover.
       await unlink(this.writerLockPath);
     }
   }
