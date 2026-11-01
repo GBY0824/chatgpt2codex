@@ -137,13 +137,35 @@ export class JsonOAuthStore {
   }
 
   private async load(): Promise<OAuthFile> {
+    // Only an ABSENT file is an uninitialized store. A corrupt, inaccessible,
+    // unsupported or unreadable existing file must never become an empty
+    // document: the next OAuth write would otherwise erase registered clients
+    // and token records silently.
+    let raw: string;
     try {
-      const raw = await readFile(this.filePath, "utf8");
-      const parsed = OAuthFileSchema.safeParse(JSON.parse(raw));
-      this.cache = parsed.success ? parsed.data : emptyFile();
-    } catch {
-      this.cache = emptyFile();
+      raw = await readFile(this.filePath, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        this.cache = emptyFile();
+        return this.cache;
+      }
+      this.cache = undefined;
+      throw new Error("OAUTH_STORE_READ_FAILED", { cause: error });
     }
+
+    let document: unknown;
+    try {
+      document = JSON.parse(raw);
+    } catch {
+      this.cache = undefined;
+      throw new Error("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+    }
+    const parsed = OAuthFileSchema.safeParse(document);
+    if (!parsed.success || parsed.data.version !== 1) {
+      this.cache = undefined;
+      throw new Error("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+    }
+    this.cache = parsed.data;
     return this.cache;
   }
 
@@ -274,6 +296,9 @@ export class JsonOAuthStore {
 
   async clearAll(): Promise<void> {
     await this.locked(async () => {
+      // Explicit token rotation still must not overwrite a damaged OAuth
+      // store. Recover the damaged file privately before any reset.
+      await this.load();
       await this.persist(emptyFile());
     });
   }
