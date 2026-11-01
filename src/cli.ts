@@ -284,6 +284,11 @@ async function cmdInit(flags: Record<string, string | boolean>): Promise<void> {
   const workspaceRoot = path.resolve(workspace);
   const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
 
+  // Refuse init before ANY project/session/ledger write when the existing
+  // OAuth file is corrupt or unreadable. In particular a token rotation
+  // must never happen after a partial re-initialization.
+  await new JsonOAuthStore(stateDir).assertReadable();
+
   const store = new Store(stateDir);
   const ledger = new Ledger(stateDir);
 
@@ -305,9 +310,6 @@ async function cmdInit(flags: Record<string, string | boolean>): Promise<void> {
       "chatgpt2codex init: owner token already set (pass --rotate-owner-token to generate a new one).",
     );
   } else {
-    // An existing broken OAuth file must not cause a new owner token to
-    // be installed before the associated OAuth reset refuses the write.
-    await new JsonOAuthStore(stateDir).assertReadable();
     const ownerToken = generateOwnerToken();
     await storeOwnerToken(stateDir, ownerToken);
     console.error("");
