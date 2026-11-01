@@ -495,9 +495,11 @@ no owner Windows credentials are read by CI.
   `owner-token --generate` or `owner-token --set-stdin`, since
   those actions deliberately clear all OAuth client/token registrations.
 - Never run old 7979 and new 7979 simultaneously against the same OAuth
-  store; the JSON store serializes writes within one process instance
-  but does not provide an interprocess distributed write lock. Shut
-  down the old writer using the **verified lifecycle owner** first.
+  store. **The candidate now uses an exclusive oauth-write.lock claim**
+  for read-modify-write cycles across candidate processes, but the
+  deployed legacy v0.2.0 does **not** recognize this file. Therefore the
+  old writer MUST still be stopped using the verified lifecycle owner
+  before the candidate can share its state directory.
   The isolated 7987 staging service must keep its **separate state**.
 - Existing basic-scope tokens may continue to authorize *legacy* MCP
   operations if valid, not expired, not revoked, and the resource/issuer
@@ -545,11 +547,52 @@ unreadable non-file, all store mutation paths and recovery after
 explicit fixture repair. These are **synthetic source/CLI CI tests**,
 never probes of the owner's actual secrets.
 
-**Limits:** This change does not provide a transactional two-file
-OAuth/Owner Token rotation or cross-process write locking, and cannot
-guarantee uninterrupted service if storage fails between writes. Do
+**Limits:** The corrupt-file guard does not provide transactional
+OAuth/Owner Token rotation. Cross-process candidate OAuth writer locking
+is now addressed in the following section, but it cannot prevent a
+legacy process (which ignores the new lock) from writing the same store
+or guarantee service continuity after a crash/storage failure. Do
 not rotate tokens or run `init` as a migration procedure. Full program
 and private state migration still requires separately authorized
 backup, shutdown of the verified original writer, signed/trusted
 release, real-client health checks and rollback. PR remains draft,
 source-only, with consumer CHAT rollovers 0/2.
+
+## Exclusive candidate OAuth writer claims (cross-process source gate)
+
+The upgraded candidate's `JsonOAuthStore` now creates
+`oauth-write.lock` with exclusive `wx` semantics **before** each
+OAuth read-modify-persist transaction (new client, token pair rotation,
+token deletion and reset). It holds the lock through the save and
+releases it in a `finally` path. Other candidate processes wait
+briefly for a legitimate writer; after a bounded wait they reject with
+`OAUTH_WRITE_LOCK_BUSY_OR_STALE` rather than overwriting each other's
+data. The lock contains only a PID and creation timestamp, no token
+secrets. Normal OAuth reads remain read-only and are not locked.
+
+A process crash can leave `oauth-write.lock` behind. **This is an
+intentional fail-closed stop:** the candidate does not infer safety
+from a dead PID or automatically delete the lock. A verified original
+writer shutdown, private OAuth backup/checksums and separately
+authorized lock recovery are required to resolve a stale marker.
+`init` and Owner Token rotation now call `assertWritable()` before
+changing Owner Token or project/session state, to reject an already
+stale claim early. This is still NOT a transactional two-file
+Owner Token/OAuth replacement if a crash occurs between writes.
+
+CI `scripts/verify-oauth-writer-lock.mjs` launches **three real Node
+processes** against a disposable synthetic state; each registers eight
+fake clients. It requires all 24 registrations to survive and a separate
+stale-lock attempt to fail without changing the JSON or deleting the
+claim. The built CLI regression separately verifies that a stale
+claim blocks Owner Token rotation before changing its hash. These
+tests never reference the installed 7979 or isolated 7987 directories.
+
+**Critical scope limitation:** the original production v0.2.0 OAuth
+store does not honor the new claim. This is **candidate-vs-candidate
+protection only**, NOT permission to point two differently versioned
+processes at the same production state. Also not proven: lock ownership
+against arbitrary OS-level file replacement, a full power loss and
+restart, or live ChatGPT client continuity. Never reuse the old
+production state with an active legacy writer. PR remains draft and
+rollover evidence remains 0/2.
