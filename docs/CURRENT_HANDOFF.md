@@ -1,5 +1,41 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — NEW SOURCE INSPECTOR / INTEGRITY TESTS
+
+New fork-only **read-only** diagnostic source
+`scripts/Inspect-OneMcpStartupReadOnly.ps1` at
+`33681c3d77a41556fce5b5bd139a58abe7db1331`
+now compares current Scheduler COM running instance `EnginePID` to a
+verified current WScript ancestor and rechecks listener/ancestor identity.
+It reports only bounded safe booleans/counts, fails closed on inaccessible
+Scheduler state, does not read process or task command lines or OAuth
+tokens, and keeps **automatic relaunch safety and production cutover
+authorization false**. The separate live Windows COM observation
+already identified the Tailscale running instance; THIS new source has
+not been deployed to that owner installation. Windows CI assertion
+source `9f1bbb01bef23428cdc1b33137069a890a7430e7`
+verifies bounded non-overclaim on disposable runner listener;
+[Actions 41341851549](https://github.com/GBY0824/chatgpt2codex/actions/runs/41341851549)
+was IN PROGRESS at checkpoint.
+
+Also hardened synthetic supervisor policy at code
+`61fde4b533cded581a2d49473b72272755be7290`:
+refuses missing/negative/contradictory whole-scheduler scan counts,
+with explicit new regression cases and accurate positive+negative
+fixture total. Independently check
+[Actions 41341693066](https://github.com/GBY0824/chatgpt2codex/actions/runs/41341693066)
+before claiming source CI success.
+
+All work remains draft PR source, tests and sanitized read-only
+owner observations. Existing production 7979/staging 7987 and OAuth
+state are untouched. Remaining: identify actual independent relaunch
+behavior of recurrent watchdogs, prove OAuth issuer/state ownership
+and private backup, obtain separate explicit live migration approval,
+and independently demonstrate genuine authenticated original consumer
+Project chat GOAL cycle and 2/2 unattended rollovers (still 0/2).
+
+---
+
 ## 2026-11-02 KST — STRONG DIRECT LIVE OWNER MATCH: TASK SCHEDULER ENGINE PID
 
 The original production 7979 process's `wscript.exe` ancestor was
