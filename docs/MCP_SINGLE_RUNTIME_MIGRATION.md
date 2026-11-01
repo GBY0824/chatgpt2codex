@@ -3,6 +3,67 @@
 **Status:** compatibility validation in progress. **NO production deployment or merge approved.**
 This is an upgrade of the *same* ChatGPT To Codex codebase, **not** a permanent second MCP service.
 
+## 2026-11-02 — verified running task and source-level relaunch-risk gate
+
+**Live read-only host evidence (not a cutover approval):** the currently running
+original `7979` WScript ancestor matches the Task Scheduler
+`IRunningTask.EnginePID` of `ChatGPT To Codex MCP - Tailscale`.
+This is a true **current engine association**, independently confirmed
+twice, not proof that disabling this task alone prevents relaunch. The
+task's scheduler settings are one logon trigger and **up to five retries
+at one-minute intervals**; the separate
+`ChatGPTToCodexEmergent-Watchdog` and
+`ChatGPTToCodexMcpSelfHealing` each have both logon/time triggers.
+Owner Windows currently has one 7979 listener; no real task was changed.
+
+**Potential watchdog relaunch behavior from saved research source, not
+proven live installation:** the separately preserved
+`GBY0824/freqtrade-mcp-research` `main` file
+`tools/Watch-ChatGPTToCodexMcp.ps1` uses
+`Start-ScheduledTask -TaskName $MainTaskName` in two conditional branches:
+when the expected 7979 listener is **absent**, and when the expected
+process exists but the protected local MCP endpoint **fails its health
+check** (the latter also writes a restart-request marker).
+Public Funnel-only recovery is separate and primarily performs Tailscale
+network repairs. This code could restore the old writer **if it is the
+script actually deployed**, but the installed Windows script version and
+invocation route have **not** been hash-matched to this research source.
+Do not promote source-path resemblance to live watchdog behavior.
+Also, `Start-ScheduledTask` under `IgnoreNew` may not spawn another
+process while the old task is already running. No actual relaunch was
+induced or observed.
+
+**Previously missing main-task safety gate repaired** in
+`scripts/verify-synthetic-supervisor-quiescence.mjs` at source SHA
+`aca982e7f5184f6515f1f35274fe7d7058bc97ff`.
+The model now requires `ChatGPT To Codex MCP - Tailscale` by name,
+forbids relabeling its verified role as unrelated, and requires explicit
+evidence for **current engine shutdown, five-retry restart suppression,
+logon-trigger suppression**, along with all other independently recurring
+routes, no old OAuth writer, and pinned private state backup. It tests
+missing/misclassified/active main-task negative cases.
+This is a **synthetic validation of refusal logic**, not a production
+quiescence or shared OAuth-state migration.
+
+**Safe production gate sequence** (do not execute without separate owner
+authorization): (1) independent read-only verification of deployed
+launcher/watcher script identity, mode-dependent behavior and every
+scheduler/Startup route; (2) strictly private OAuth issuer and
+registered-client state identity plus hash-backed snapshot, with no
+tokens printed or uploaded; (3) owner-approved temporary quiescence of
+*verified old-7979 relaunchers only*, preserving unrelated OSINT modes,
+including Scheduler retry and Startup paths; (4) verify no original
+writer remains, and observe for a sufficient period to cover known
+retry and recurring launch paths without assuming one sleep proves
+permanent suppression; (5) staged new candidate on **separate state**
+until original is quiesced, then a reversible, single-writer handover;
+(6) revalidate existing OAuth client continuity, legacy tools, GOAL
+read-only status, and independent rollback. **No installer overwrite,
+new OAuth init, task stopping, token rotation or 7987 consolidation
+is permitted by this research note.**
+
+---
+
 ## Verified owner-PC starting point (2026-11-01 KST)
 
 - Original installed MCP: `127.0.0.1:7979`, binary under
