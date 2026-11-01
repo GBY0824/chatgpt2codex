@@ -231,9 +231,15 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
     const oldScope = (await client.callTool({
       name: "goal_app_command",
       arguments: { action: "ON", expectedRevision: 0 },
-    })) as { isError?: boolean; structuredContent?: { code?: string } };
+    })) as { isError?: boolean; structuredContent?: { code?: string }; _meta?: Record<string, unknown> };
     expect(oldScope.isError).toBe(true);
     expect(oldScope.structuredContent?.code).toBe("APP_GOAL_OAUTH_SCOPE_OR_AUTH_MISSING");
+    expect(oldScope._meta?.["mcp/www_authenticate"]).toEqual(expect.arrayContaining([
+      expect.stringContaining('error="insufficient_scope"'),
+    ]));
+    expect(oldScope._meta?.["mcp/www_authenticate"]).toEqual(expect.arrayContaining([
+      expect.stringContaining('scope="chatgpt2codex chatgpt2codex.goal"'),
+    ]));
     await client.close();
     client = undefined;
 
