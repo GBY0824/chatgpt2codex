@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { getOAuthProtectedResourceMetadataUrl } from "@modelcontextprotocol/sdk/server/auth/router.js";
+import { resourceUrlFromServerUrl } from "@modelcontextprotocol/sdk/shared/auth-utils.js";
 import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 import {
@@ -952,10 +954,31 @@ export function registerTools(server: unknown, ctx: ToolContext): void {
           return makeResult(value, `GOAL app intent: ${String(value.code)}`);
         } catch (error) {
           if (error instanceof GoalAppCommandError) {
-            return makeResult(
+            const denied = makeResult(
               { code: error.code, accepted: false, effectsIssued: 0 },
               `GOAL app intent denied: ${error.code}`, true,
             );
+            // Tool-level ChatGPT OAuth re-consent needs BOTH the dedicated
+            // securitySchemes and the response-level www_authenticate hint.
+            // Derive the resource only from server-verified extra.authInfo,
+            // never from model input or arbitrary request arguments.
+            const resource = extra.authInfo?.resource;
+            const isTrustworthyOrigin = resource instanceof URL &&
+              (resource.protocol === "https:" ||
+                (resource.protocol === "http:" &&
+                 (resource.hostname === "127.0.0.1" || resource.hostname === "localhost")));
+            if (error.code === "APP_GOAL_OAUTH_SCOPE_OR_AUTH_MISSING" &&
+                ctx.remote === true && isTrustworthyOrigin) {
+              const metadataUrl = getOAuthProtectedResourceMetadataUrl(
+                resourceUrlFromServerUrl(resource),
+              );
+              denied._meta = {
+                "mcp/www_authenticate": [
+                  `Bearer resource_metadata="${metadataUrl.toString()}", scope="chatgpt2codex chatgpt2codex.goal", error="insufficient_scope", error_description="Owner must approve the separate GOAL application scope"`,
+                ],
+              };
+            }
+            return denied;
           }
           throw error;
         }
