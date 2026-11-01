@@ -98,6 +98,46 @@ async function saveState(filename: string, state: IntentState): Promise<void> {
   } finally { await fs.unlink(tmp).catch(() => undefined); }
 }
 
+/**
+ * Serialize APP GOAL ledger writes across candidate MCP processes.
+ * Preserve a replacement/mutated claim instead of unlinking a different
+ * process's lock. A crash leaves the marker and always requires deliberate
+ * owner-side recovery; this is NOT a production legacy OAuth writer lock.
+ *
+ * Filesystem check+unlink is best-effort, not an atomic unlink-by-handle;
+ * shared-state isolation remains mandatory on any eventual live cutover.
+ */
+export async function withGoalIntentClaim<T>(
+  lockPath: string, fn: () => Promise<T>,
+): Promise<T> {
+  let lock: import("node:fs/promises").FileHandle;
+  try { lock = await fs.open(lockPath, "wx", 0o600); }
+  catch { throw new GoalAppCommandError("APP_GOAL_LOCK_BUSY_NO_REPLAY"); }
+  const marker = JSON.stringify({
+    schema: 1, pid: process.pid, nonce: randomUUID(),
+  });
+  const identity = await lock.stat();
+  try {
+    await lock.writeFile(marker);
+    await lock.sync();
+    return await fn();
+  } finally {
+    await lock.close();
+    let sameClaim = false;
+    try {
+      const [text, current] = await Promise.all([
+        fs.readFile(lockPath, "utf8"), fs.lstat(lockPath),
+      ]);
+      sameClaim = current.isFile() && text === marker
+        && current.dev === identity.dev && current.ino === identity.ino;
+    } catch {
+      // An absent, replaced, inaccessible or non-file marker is NOT owned.
+    }
+    if (!sameClaim) throw new GoalAppCommandError("APP_GOAL_LOCK_OWNERSHIP_LOST");
+    await fs.unlink(lockPath);
+  }
+}
+
 export async function goalAppCommand(
   stateDir: string, input: GoalAppInput, verifiedAuth: VerifiedAppCaller | undefined,
   remote: boolean,
@@ -121,10 +161,7 @@ export async function goalAppCommand(
   // Cross-process mutual exclusion; abandon/unknown lock fails closed.
   await fs.mkdir(stateDir, { recursive: true });
   const lockPath = `${filePath}.lock`;
-  let lock: import("node:fs/promises").FileHandle;
-  try { lock = await fs.open(lockPath, "wx", 0o600); }
-  catch { throw new GoalAppCommandError("APP_GOAL_LOCK_BUSY_NO_REPLAY"); }
-  try {
+  return withGoalIntentClaim(lockPath, async () => {
     const s = await loadState(filePath);
     if (input.action === "ON" && input.expectedRevision !== s.revision) {
       return { code: "APP_GOAL_REVISION_STALE", requestedMode: s.requestedMode,
@@ -141,8 +178,5 @@ export async function goalAppCommand(
     return { code: "APP_GOAL_INTENT_RECORDED_ONLY", requestedMode: next.requestedMode,
       revision: next.revision, researchExecutionAuthorized: false,
       originalChatTurnAttested: false, effectsIssued: 0 };
-  } finally {
-    await lock.close();
-    await fs.unlink(lockPath).catch(() => undefined);
-  }
+  });
 }
