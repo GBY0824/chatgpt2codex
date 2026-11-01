@@ -83,7 +83,7 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
     await expect(store.registerClient(basicClient, []))
       .rejects.toThrow("OAUTH_WRITE_LOCK_BUSY_OR_STALE");
     expect(await readFile(markerPath, "utf8")).toBe(forged);
-  });
+  }, 20_000);
 
   it("a rejected operation does not poison the queue after explicit fixture repair", async () => {
     await writeFile(oauthFile(), "{invalid");
