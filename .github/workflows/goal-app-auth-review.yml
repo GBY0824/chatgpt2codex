@@ -14,6 +14,9 @@ on:
       - "src/state/isolated-state.ts"
       - "src/state/isolated-state.test.ts"
       - "scripts/Prepare-GoalAppOfflineStage.ps1"
+      - "scripts/goal_app_local_oauth_smoke_20261101.mjs"
+      - "scripts/verify-legacy-mcp-compat.mjs"
+      - "docs/GOAL_APP_AUTH_REVIEW.md"
       - ".github/workflows/goal-app-auth-review.yml"
 
 permissions:
@@ -36,6 +39,21 @@ jobs:
         run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts src/state/isolated-state.test.ts
       - name: Full source build (no deployment)
         run: npm run build
+      # Verify the candidate source is an additive upgrade of the ACTUAL
+      # checked-out baseline main; do not trust a hand-maintained tool list.
+      - name: Checkout current legacy main for compatibility contract
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: legacy-base
+          persist-credentials: false
+      - name: Build legacy main in CI sandbox
+        working-directory: legacy-base
+        run: |
+          npm ci
+          npm run build
+      - name: Compare built MCP tool and OAuth compatibility with baseline
+        run: node scripts/verify-legacy-mcp-compat.mjs legacy-base .
 
   macos-control-regressions:
     runs-on: macos-latest
