@@ -227,7 +227,7 @@ jobs:
           New-Item -ItemType Directory -Path (Join-Path $testOriginal "dist") -Force | Out-Null
           "synthetic-installed-legacy" | Set-Content -Path (Join-Path $testOriginal "dist/cli.js") -Encoding ascii
           Copy-Item package.json -Destination (Join-Path $testOriginal "package.json")
-          $result = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $testOriginal -CandidateStageDir "staging-release" | ConvertFrom-Json
+          $result = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $testOriginal -CandidateStageDir (Resolve-Path "staging-release").Path | ConvertFrom-Json
           if ($result.code -ne "READONLY_SINGLE_MCP_CUTOVER_PREFLIGHT" -or
               -not $result.candidateHasReviewProvenance -or
               -not $result.candidateHasSelfConsistentCriticalManifest -or
