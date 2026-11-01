@@ -248,10 +248,13 @@ async function windowsSharing() {
   try {
     // A short-lived independent PowerShell child holds a truly exclusive
     // Windows kernel file handle; no permission policy changes or bypass.
-    const code = '$path=$args[0];$stream=[System.IO.File]::Open($path,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None);try{[Console]::Out.WriteLine("SYNTHETIC_WINDOWS_LOCK_HELD");[Console]::Out.Flush();Start-Sleep -Seconds 20}finally{$stream.Dispose()}';
+    // Match the already-proven Windows FileShare.None harness. Passing a path
+    // via $args after -Command is not reliable; use the child environment.
+    const code = '$ErrorActionPreference="Stop";$stream=[System.IO.File]::Open($env:SYNTHETIC_FILE_TO_LOCK,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None);try{Write-Output "SYNTHETIC_WINDOWS_LOCK_HELD";Start-Sleep -Seconds 20}finally{$stream.Dispose()}';
     const target=path.join(fx.f.installed,'dist/cli.js');
-    blocker=spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',code,target],{
-      stdio:['pipe','pipe','pipe'],windowsHide:true});
+    blocker=spawn('pwsh',['-NoProfile','-NonInteractive','-Command',code],{
+      env:{...process.env,SYNTHETIC_FILE_TO_LOCK:target},
+      stdio:['ignore','pipe','pipe'],windowsHide:true});
     await new Promise((resolve,reject)=>{
       let output='';let timer=setTimeout(()=>reject(new Error('FILESHARE_OWNER_TIMEOUT')),8000);
       blocker.stdout.on('data',b=>{output+=b.toString();if(output.includes('SYNTHETIC_WINDOWS_LOCK_HELD')){clearTimeout(timer);resolve();}});
