@@ -17,6 +17,7 @@ on:
       - "scripts/goal_app_local_oauth_smoke_20261101.mjs"
       - "scripts/verify-legacy-mcp-compat.mjs"
       - "scripts/verify-synthetic-windows-cutover.mjs"
+      - "scripts/verify-synthetic-windows-crash-recovery.mjs"
       - "docs/GOAL_APP_AUTH_REVIEW.md"
       - "docs/MCP_SINGLE_RUNTIME_MIGRATION.md"
       - ".github/workflows/goal-app-auth-review.yml"
@@ -97,6 +98,8 @@ jobs:
       # paths are generated under the disposable Windows runner temp root.
       - name: Synthetic Windows single-MCP cutover and rollback injections
         run: node scripts/verify-synthetic-windows-cutover.mjs
+      - name: Synthetic Windows process-crash journal recovery and corrupt-state fences
+        run: node scripts/verify-synthetic-windows-crash-recovery.mjs
       - name: Windows TypeScript typecheck
         run: npm run typecheck
       - name: Windows source build only
