@@ -17,6 +17,7 @@ on:
       - "scripts/goal_app_local_oauth_smoke_20261101.mjs"
       - "scripts/verify-legacy-mcp-compat.mjs"
       - "docs/GOAL_APP_AUTH_REVIEW.md"
+      - "docs/MCP_SINGLE_RUNTIME_MIGRATION.md"
       - ".github/workflows/goal-app-auth-review.yml"
 
 permissions:
