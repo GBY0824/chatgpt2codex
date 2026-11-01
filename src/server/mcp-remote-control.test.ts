@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { execFileSync } from "node:child_process";
+import { createServer as createHttpsServer, request as httpsRequest } from "node:https";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { storeOwnerToken } from "../auth/owner-token.js";
 import type { ToolContext } from "../types.js";
@@ -328,5 +330,77 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
     });
     expect(after.structuredContent).toMatchObject({ requestedMode: "OFF", revision: 0 });
   }, 25_000);
+
+  it("serves scoped OAuth metadata over CA-verified isolated HTTPS and denies anonymous MCP", async () => {
+    // A temporary CA-trusted TLS listener exercises HTTPS origin, OAuth
+    // discovery and bearer protection; this never contacts the user's Funnel.
+    const certConfig = path.join(stateDir, "test-openssl.cnf");
+    const certPath = path.join(stateDir, "test-cert.pem");
+    const keyPath = path.join(stateDir, "test-key.pem");
+    await fs.writeFile(certConfig, [
+      "[req]", "distinguished_name=dn", "x509_extensions=v3_req", "prompt=no",
+      "[dn]", "CN=localhost", "[v3_req]",
+      "subjectAltName=DNS:localhost,IP:127.0.0.1",
+      "basicConstraints=critical,CA:TRUE",
+      "keyUsage=critical,digitalSignature,keyEncipherment,keyCertSign,cRLSign",
+      "extendedKeyUsage=serverAuth", "",
+    ].join("\n"));
+    execFileSync("openssl", [
+      "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256",
+      "-days", "1", "-keyout", keyPath, "-out", certPath,
+      "-config", certConfig, "-extensions", "v3_req",
+    ], { stdio: "ignore", timeout: 15_000 });
+    const cert = await fs.readFile(certPath);
+    const key = await fs.readFile(keyPath);
+    const port = await getFreePort();
+    const base = "https://127.0.0.1:" + port;
+    const ctx = makeCtx(stateDir, projectRoot);
+    const running = createHttpServer(ctx, defaultHttpServerConfig({
+      host: "127.0.0.1", port, publicUrl: base,
+    }));
+    const tls = createHttpsServer({ cert, key }, running.app);
+    await new Promise<void>((resolve) => tls.listen(port, "127.0.0.1", resolve));
+    stop = async () => {
+      await new Promise<void>((resolve) => tls.close(() => resolve()));
+      running.close();
+    };
+    function secureRequest(endpoint: string, method = "GET", payload?: string): Promise<{
+      status: number; body: string;
+    }> {
+      return new Promise((resolve, reject) => {
+        const request = httpsRequest(base + endpoint, {
+          method, ca: cert, rejectUnauthorized: true, agent: false,
+          headers: {
+            ...(payload === undefined ? {} : {
+              "content-type": "application/json",
+              "content-length": String(Buffer.byteLength(payload)),
+              accept: "application/json, text/event-stream",
+            }),
+          },
+        }, (response) => {
+          const chunks: Buffer[] = [];
+          response.on("data", (chunk: Buffer) => chunks.push(chunk));
+          response.on("end", () => resolve({
+            status: response.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString("utf8"),
+          }));
+        });
+        request.on("error", reject);
+        request.setTimeout(10_000, () => request.destroy(new Error("TLS test request timed out")));
+        request.end(payload);
+      });
+    }
+    const discovery = await secureRequest("/.well-known/openid-configuration");
+    expect(discovery.status).toBe(200);
+    const metadata = JSON.parse(discovery.body) as {
+      issuer: string; scopes_supported: string[];
+    };
+    expect(metadata.issuer).toBe(base);
+    expect(metadata.scopes_supported).toEqual(expect.arrayContaining([
+      "chatgpt2codex", "chatgpt2codex.goal",
+    ]));
+    const unauthenticated = await secureRequest("/mcp", "POST", "{}");
+    expect(unauthenticated.status).toBe(401);
+  }, 30_000);
 
 });
