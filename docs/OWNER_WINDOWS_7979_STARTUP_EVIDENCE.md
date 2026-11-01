@@ -22,19 +22,33 @@ credentials, start a second MCP against the same OAuth state, or merge PR #1.
 - Current user's Windows Startup folder contains a candidate entry
   named **`ChatGPTToCodexEmergent.cmd`**. The common/all-users Startup
   folder had no filename matching the MCP/ChatGPT/Codex filter.
-- The Startup observation is based on **entry filenames only**:
-  no startup script content, shortcut target, process command-line,
-  registry values, Task Scheduler arguments, OAuth files or secrets were
-  read or printed.
+- The Startup filename was observed without opening the file. A
+  **separate later targeted read-only check** of that one CMD file
+  checked **only boolean command-type patterns**: it mentions PowerShell
+  and ChatGPT/Codex, but does not directly mention WScript. **No CMD
+  contents, command arguments, file paths or tokens were printed.**
+- Matching Windows Task Scheduler **task-name metadata only** revealed
+  **13** task names related to ChatGPT/Codex/MCP; not all are necessarily
+  owners of this 7979 process. For three relevant lifecycle candidates,
+  task actions have executable basename `wscript.exe`. Two watchdog/
+  self-healing tasks were in **Ready** state with logon and time triggers,
+  and one authentication guard was **Disabled**. Neither task arguments
+  nor task scripts were opened or printed. Ready != running.
+- No process command-line, Task Scheduler arguments, OAuth files, owner
+  token values, startup settings or other service configuration was
+  modified; no credentials were printed.
 
 ## What is and is not proven
 
 The runtime process ancestry **`wscript.exe` -> `powershell.exe` ->
 `node.exe`** is directly observed. The matching current-user Startup
 filename is a plausible lifecycle candidate, **not proof** that this
-specific .cmd starts this specific process chain. The initiating login
-item vs Task Scheduler vs watchdog remains **UNVERIFIED** until the
-owner authorizes the precise lifecycle investigation.
+specific .cmd starts this specific process chain. There are also
+**multiple Ready WScript-based scheduled watchdog candidates**, so the
+process's actual launcher/supervisor is **not uniquely established**.
+Do not disable any task or Startup entry based solely on this evidence.
+The precise initiating login item versus scheduler/watchdog remains
+**UNVERIFIED** pending owner-authorized action/link examination.
 
 The repo's `scripts/Inspect-OneMcpStartupReadOnly.ps1` was expanded
 after this observation to output a bounded ancestry of executable
