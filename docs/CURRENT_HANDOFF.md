@@ -1,5 +1,54 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — IMPORTANT CORRECTION: 7 LIVE SCRIPT-MATCHING TASKS
+
+A fresh, corrected **whole-Task-Scheduler** owner Windows read-only
+comparison, not merely a task-NAME filter, scanned **234 tasks / 236
+actions**, including **9 WScript actions**, **0** unparseable WScript
+arguments, and **7** task actions matching the original 7979 live
+WScript ancestor's exact normalized full script path. At the observed
+instant, 3 matched tasks were Running, 2 Ready and 2 Disabled. The
+earlier three-task inventory was **incomplete for cutover design**.
+Neither these script-path matches nor task state proves which historical
+launcher started original Node or that all 7 can independently restart it.
+No raw script paths, arguments, credentials or user state were emitted;
+no task or process changed.
+
+The first broader scan also counted seven but logged exceptions on
+other task executables, so a corrected non-throwing scan was run to
+produce the authoritative complete counts above. A missing/unparsed
+action must fail closed.
+
+**Repair in fork review source**
+[3bd9e8a](https://github.com/GBY0824/chatgpt2codex/commit/3bd9e8a489262c09d79bbbea779674a160b47564):
+`scripts/verify-synthetic-supervisor-quiescence.mjs` now requires a
+DYNAMIC verified task inventory whose length equals the observed
+full-action scan. It specifically tests extra enabled/Running hidden
+routes, missing/falsified counts and unparseable actions; never assumes
+three known names exhaust the restart mechanisms. New detailed
+[owner evidence](./OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md) commit
+`a543885857502873820a25ef691ed0d05bf5e715`.
+
+**CI receipt:** earlier source/workflow test SHA
+`4162ea1728d54793594e38a5dbb3153f2ce84053`,
+[Actions 41340462559](https://github.com/GBY0824/chatgpt2codex/actions/runs/41340462559),
+completed SUCCESS 3/3 for the *older three-task synthetic gate*.
+That success does NOT validate the subsequently corrected dynamic
+inventory. Check independent newer Actions
+[41340759049](https://github.com/GBY0824/chatgpt2codex/actions/runs/41340759049)
+for repair SHA `3bd9e8a`; it was in progress when checked.
+Latest PR HEAD may differ because of documentation commits.
+
+**Immediate safe next steps:** inspect the purpose/argument-mode of
+ALL seven same-script task actions by strictly sanitized approved
+read-only analysis, then inventory Startup/other launch routes; design
+an owner-approved reversible quiescence and recovery plan with all
+routes addressed. Do not stop, disable, install, merge, rotate OAuth,
+or run the old v0.2.0 beside new shared-state writer. Actual GOAL
+research executions 0; real unattended ChatGPT Project rollovers 0/2.
+
+---
+
 ## 2026-11-02 KST — NEXT-CHAT RESUMPTION: SUPERVISOR CUTOVER SAFETY
 
 **This section supersedes the earlier 03:53 checkpoint for new work.**
