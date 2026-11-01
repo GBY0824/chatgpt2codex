@@ -1,5 +1,5 @@
 import { randomUUID, createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile, chmod } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile, chmod, open, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
@@ -112,17 +112,62 @@ export class JsonOAuthStore {
   private readonly filePath: string;
   private queue: Promise<unknown> = Promise.resolve();
   private cache: OAuthFile | undefined;
+  private readonly writerLockPath: string;
+
 
   constructor(stateDir: string) {
     this.stateDir = stateDir;
     this.filePath = join(stateDir, OAUTH_FILE);
+    this.writerLockPath = join(stateDir, "oauth-write.lock");
+
   }
 
-  /** Serialize all read-modify-write operations on the backing file. */
-  private locked<T>(fn: () => Promise<T>): Promise<T> {
-    const run = this.queue.then(fn, fn);
-    // Swallow rejections in the chain itself so one failed op doesn't wedge
-    // the queue for subsequent callers; callers still see their own errors.
+  /**
+   * An exclusive filesystem claim guards a whole read/modify/persist
+   * transaction across independently running candidate processes.
+   * The old production v0.2.0 DOES NOT honor this marker, so it must
+   * still be stopped before sharing a state directory on live cutover.
+   *
+   * A process crash deliberately leaves a stale marker. Never guess that
+   * its PID is safe to reclaim: PID reuse and in-progress writes make
+   * automatic removal unsafe. Recovery requires owner intervention.
+   */
+  private async withWriterClaim<T>(fn: () => Promise<T>): Promise<T> {
+    await this.ensureDir();
+    const deadline = Date.now() + 5000;
+    let handle: Awaited<ReturnType<typeof open>>;
+    while (true) {
+      try {
+        handle = await open(this.writerLockPath, "wx", FILE_MODE);
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+          throw new Error("OAUTH_WRITE_LOCK_IO_FAILED", { cause: error });
+        }
+        if (Date.now() >= deadline) {
+          throw new Error("OAUTH_WRITE_LOCK_BUSY_OR_STALE");
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    try {
+      await handle.writeFile(JSON.stringify({ version: 1, pid: process.pid, createdAt: Date.now() }));
+      await handle.sync();
+      return await fn();
+    } finally {
+      await handle.close();
+      // Remove only the claim created by THIS process, after all async work
+      // is complete. Other processes never remove another writer's marker.
+      await unlink(this.writerLockPath);
+    }
+  }
+
+  /** Serialize operations within this store instance, plus mutations
+   * across candidate processes before reading and persisting OAuth JSON. */
+  private locked<T>(fn: () => Promise<T>, write = false): Promise<T> {
+    const action = () => write ? this.withWriterClaim(fn) : fn();
+    const run = this.queue.then(action, action);
+    // Do not wedge future requests after an explicit fail-closed rejection.
     this.queue = run.catch(() => undefined);
     return run;
   }
@@ -221,7 +266,7 @@ export class JsonOAuthStore {
       });
       await this.persist(doc);
       return registered;
-    });
+    }, true);
   }
 
   async getAccessToken(tokenHash: string): Promise<PersistedAccessTokenRecord | undefined> {
@@ -273,7 +318,7 @@ export class JsonOAuthStore {
 
       await this.persist(doc);
       return true;
-    });
+    }, true);
   }
 
   async deleteAccessToken(tokenHash: string): Promise<void> {
@@ -282,7 +327,7 @@ export class JsonOAuthStore {
       const before = doc.accessTokens.length;
       doc.accessTokens = doc.accessTokens.filter((t) => t.tokenHash !== tokenHash);
       if (doc.accessTokens.length !== before) await this.persist(doc);
-    });
+    }, true);
   }
 
   async deleteRefreshToken(tokenHash: string): Promise<void> {
@@ -291,7 +336,7 @@ export class JsonOAuthStore {
       const before = doc.refreshTokens.length;
       doc.refreshTokens = doc.refreshTokens.filter((t) => t.tokenHash !== tokenHash);
       if (doc.refreshTokens.length !== before) await this.persist(doc);
-    });
+    }, true);
   }
 
   /** Guard sensitive lifecycle actions before changing the separate owner
@@ -309,7 +354,7 @@ export class JsonOAuthStore {
       // store. Recover the damaged file privately before any reset.
       await this.load();
       await this.persist(emptyFile());
-    });
+    }, true);
   }
 
   close(): void {
