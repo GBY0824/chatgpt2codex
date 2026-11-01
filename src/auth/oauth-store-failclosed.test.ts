@@ -67,6 +67,24 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
     await expect(store.clearAll()).rejects.toThrow("OAUTH_STORE_READ_FAILED");
   });
 
+  it("refuses to unlink a writer claim that was modified by someone else", async () => {
+    const markerPath = join(dir, "oauth-write.lock");
+    const forged = JSON.stringify({ version: 1, pid: 9999999, nonce: "foreign-test-owner" });
+    // Internal method is deliberately exercised only against a randomly
+    // generated test folder. No real owner state or claim is accessed.
+    const internal = store as unknown as {
+      withWriterClaim(fn: () => Promise<void>): Promise<void>;
+    };
+    await expect(internal.withWriterClaim(async () => {
+      // Same inode but different nonce: file identity ALONE is insufficient.
+      await writeFile(markerPath, forged, "utf8");
+    })).rejects.toThrow("OAUTH_WRITE_LOCK_OWNERSHIP_LOST");
+    expect(await readFile(markerPath, "utf8")).toBe(forged);
+    await expect(store.registerClient(basicClient, []))
+      .rejects.toThrow("OAUTH_WRITE_LOCK_BUSY_OR_STALE");
+    expect(await readFile(markerPath, "utf8")).toBe(forged);
+  });
+
   it("a rejected operation does not poison the queue after explicit fixture repair", async () => {
     await writeFile(oauthFile(), "{invalid");
     await expect(store.registerClient(basicClient, [])).rejects.toThrow("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
