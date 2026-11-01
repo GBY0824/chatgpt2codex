@@ -370,9 +370,10 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
       await new Promise<void>((resolve) => tls.close(() => resolve()));
       running.close();
     };
-    function secureRequest(endpoint: string, method = "GET", payload?: string): Promise<{
-      status: number; body: string;
-    }> {
+    function secureRequest(
+      endpoint: string, method = "GET", payload?: string,
+      additionalHeaders: Record<string, string> = {},
+    ): Promise<{ status: number; body: string; location?: string; sessionId?: string }> {
       return new Promise((resolve, reject) => {
         const request = httpsRequest(base + endpoint, {
           method, ca: cert, rejectUnauthorized: true, agent: false,
@@ -382,6 +383,7 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
               "content-length": String(Buffer.byteLength(payload)),
               accept: "application/json, text/event-stream",
             }),
+            ...additionalHeaders,
           },
         }, (response) => {
           const chunks: Buffer[] = [];
@@ -389,6 +391,8 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
           response.on("end", () => resolve({
             status: response.statusCode ?? 0,
             body: Buffer.concat(chunks).toString("utf8"),
+            location: response.headers.location,
+            sessionId: response.headers["mcp-session-id"] as string | undefined,
           }));
         });
         request.on("error", reject);
@@ -407,6 +411,87 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
     ]));
     const unauthenticated = await secureRequest("/mcp", "POST", "{}");
     expect(unauthenticated.status).toBe(401);
+    // Real TLS end-to-end OAuth 2.1 authorization-code + PKCE(S256) with a
+    // synthetic locally verified owner token. TLS verification is enabled.
+    // No production identity/credentials, endpoint or user ChatGPT session.
+    const redirectUri = "https://chatgpt.com/aip/gpt/oauth/callback";
+    const reg = await secureRequest("/register", "POST", JSON.stringify({
+      redirect_uris: [redirectUri],
+      token_endpoint_auth_method: "none",
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      client_name: "isolated-https-goal-test",
+    }));
+    expect(reg.status).toBeGreaterThanOrEqual(200);
+    expect(reg.status).toBeLessThan(300);
+    const clientId = String((JSON.parse(reg.body) as { client_id?: string }).client_id);
+    expect(clientId).not.toBe("undefined");
+    const verifier = randomPkceVerifier();
+    const authUrl = new URL("/authorize", base);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("code_challenge", pkceChallenge(verifier));
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("scope", "chatgpt2codex chatgpt2codex.goal");
+    authUrl.searchParams.set("resource", base + "/mcp");
+    authUrl.searchParams.set("state", "isolated-tls-test-state");
+    const page = await secureRequest(
+      authUrl.pathname + authUrl.search, "GET", undefined, { origin: "https://chatgpt.com" },
+    );
+    expect(page.status).toBe(200);
+    const csrf = page.body.match(/name="csrf_token" value="([^"]+)"/u)?.[1];
+    expect(csrf).toBeTruthy();
+    const approveForm = new URLSearchParams(authUrl.searchParams);
+    approveForm.set("csrf_token", String(csrf));
+    approveForm.set("owner_token", OWNER_TOKEN);
+    const approved = await secureRequest("/authorize", "POST", approveForm.toString(), {
+      origin: "https://chatgpt.com",
+      "content-type": "application/x-www-form-urlencoded",
+    });
+    expect(approved.status).toBe(302);
+    const code = new URL(String(approved.location)).searchParams.get("code");
+    expect(code).toBeTruthy();
+    const tokenForm = new URLSearchParams({
+      grant_type: "authorization_code", client_id: clientId,
+      redirect_uri: redirectUri, code: String(code),
+      code_verifier: verifier, resource: base + "/mcp",
+    });
+    const granted = await secureRequest("/token", "POST", tokenForm.toString(), {
+      "content-type": "application/x-www-form-urlencoded",
+    });
+    expect(granted.status).toBe(200);
+    const token = (JSON.parse(granted.body) as { access_token?: string }).access_token;
+    expect(token).toBeTruthy();
+    const authHeaders = { authorization: "Bearer " + token };
+    const init = await secureRequest("/mcp", "POST", JSON.stringify({
+      jsonrpc: "2.0", id: 1, method: "initialize", params: {
+        protocolVersion: "2025-06-18", capabilities: {},
+        clientInfo: { name: "isolated-https-goal-test", version: "1" },
+      },
+    }), authHeaders);
+    expect(init.status).toBe(200);
+    expect(init.sessionId).toBeTruthy();
+    const sessionHeaders = { ...authHeaders, "mcp-session-id": String(init.sessionId) };
+    const initialized = await secureRequest("/mcp", "POST", JSON.stringify({
+      jsonrpc: "2.0", method: "notifications/initialized",
+    }), sessionHeaders);
+    expect([200, 202, 204]).toContain(initialized.status);
+    const statusResult = await secureRequest("/mcp", "POST", JSON.stringify({
+      jsonrpc: "2.0", id: 2, method: "tools/call",
+      params: { name: "goal_app_command", arguments: { action: "status" } },
+    }), sessionHeaders);
+    expect(statusResult.status).toBe(200);
+    const dataLine = statusResult.body.split(/\r?\n/u).find(line => line.startsWith("data: "));
+    const envelope = JSON.parse(dataLine ? dataLine.slice(6) : statusResult.body) as {
+      result?: { isError?: boolean; structuredContent?: Record<string, unknown> };
+    };
+    expect(envelope.result?.isError).toBeFalsy();
+    expect(envelope.result?.structuredContent).toMatchObject({
+      requestedMode: "OFF", revision: 0,
+      originalChatTurnAttested: false, researchExecutionAuthorized: false, effectsIssued: 0,
+    });
+
   }, 30_000);
 
 });
