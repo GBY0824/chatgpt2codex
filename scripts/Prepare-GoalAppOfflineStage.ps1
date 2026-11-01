@@ -67,7 +67,9 @@ Verify-Bundle $bundle
 # The destination must be a new, separate directory. No overwrite, no
 # restart, no owner-token access, no network and no browser interaction.
 New-Item -ItemType Directory -Path $destination -ErrorAction Stop | Out-Null
-Copy-Item -LiteralPath (Join-Path $bundle '*') -Destination $destination -Recurse -Force
+Get-ChildItem -LiteralPath $bundle -Force | ForEach-Object {
+  Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse -Force
+}
 Verify-Bundle $destination
 @{
   code = 'STAGE_OFFLINE_PREPARED_ONLY'
