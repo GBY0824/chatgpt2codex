@@ -79,16 +79,28 @@ jobs:
       - name: Windows CLI isolated-state nonproduction smoke
         shell: pwsh
         run: |
-          $isolated = Join-Path $env:RUNNER_TEMP "goal-cli-isolated-state"
-          $result = & node dist/cli.js owner-token --status --isolated-state-dir $isolated
-          if ($LASTEXITCODE -ne 0) { throw "Isolated status failed" }
-          $parsed = $result | ConvertFrom-Json
-          if ($parsed.configured -ne $false) { throw "Unexpected inherited owner token" }
-          $blocked = & node dist/cli.js serve --http --isolated-state-dir $isolated --port 7979 2>&1
-          if ($LASTEXITCODE -eq 0 -or -not (($blocked -join " ") -match "ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED")) {
-            throw "Isolated mode did not reject production port"
+          @'
+          const { spawnSync } = require("node:child_process");
+          const path = require("node:path");
+          const fs = require("node:fs");
+          const isolated = path.join(process.env.RUNNER_TEMP, "goal-cli-isolated-state");
+          const run = (...args) => spawnSync(process.execPath, ["dist/cli.js", ...args], {
+            encoding: "utf8", timeout: 10000, windowsHide: true,
+          });
+          const status = run("owner-token", "--status", "--isolated-state-dir", isolated);
+          if (status.status !== 0) throw new Error("isolated status failed: " + status.stderr);
+          const parsed = JSON.parse(status.stdout);
+          if (parsed.configured !== false) throw new Error("Inherited owner token");
+          const blocked = run("serve", "--http", "--isolated-state-dir", isolated, "--port", "7979");
+          if (blocked.status === 0 ||
+              !blocked.stderr.includes("ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED")) {
+            throw new Error("Expected production-port refusal, got status " +
+              blocked.status + ", stderr " + blocked.stderr);
           }
-          if (Test-Path $isolated) { throw "Blocked operation wrote to isolated state" }
+          if (fs.existsSync(isolated)) throw new Error("Blocked call wrote isolated state");
+          console.log("ISOLATED_STATE_CLI_FAIL_CLOSED_PASS");
+          '@ | node -
+          if ($LASTEXITCODE -ne 0) { throw "Windows isolated CLI smoke failed" }
       - name: Package isolated Windows staging bundle (no deployment)
         shell: pwsh
         run: |
