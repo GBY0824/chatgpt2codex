@@ -287,7 +287,7 @@ async function cmdInit(flags: Record<string, string | boolean>): Promise<void> {
   // Refuse init before ANY project/session/ledger write when the existing
   // OAuth file is corrupt or unreadable. In particular a token rotation
   // must never happen after a partial re-initialization.
-  await new JsonOAuthStore(stateDir).assertReadable();
+  await new JsonOAuthStore(stateDir).assertWritable();
 
   const store = new Store(stateDir);
   const ledger = new Ledger(stateDir);
@@ -346,7 +346,7 @@ async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<v
 
   if (flags["set-stdin"]) {
     const token = (await readStdin()).trim();
-    await new JsonOAuthStore(stateDir).assertReadable();
+    await new JsonOAuthStore(stateDir).assertWritable();
     await storeOwnerToken(stateDir, token);
     await new JsonOAuthStore(stateDir).clearAll();
     console.log(JSON.stringify({ configured: true, rotated: true, stateDir }));
@@ -354,7 +354,7 @@ async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<v
   }
 
   if (flags.generate || flags.rotate) {
-    await new JsonOAuthStore(stateDir).assertReadable();
+    await new JsonOAuthStore(stateDir).assertWritable();
     const ownerToken = generateOwnerToken();
     await storeOwnerToken(stateDir, ownerToken);
     await new JsonOAuthStore(stateDir).clearAll();
