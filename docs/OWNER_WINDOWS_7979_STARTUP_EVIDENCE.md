@@ -78,6 +78,37 @@ may not claim specific owner startup identity based on a matching file
 name. A current-user Startup entry cannot be safely deleted, modified
 or disabled without separately approved live cutover.
 
+## Direct process-to-task action comparison (Codex read-only, 2026-11-02)
+
+The owner explicitly offered use of the connected Codex bridge for PC
+information. A **read-only** on-PC comparison examined the original
+7979 `wscript.exe` ancestor's command line and the registered action
+arguments for `ChatGPTToCodexEmergent-Watchdog`,
+`ChatGPTToCodexMcpSelfHealing` and the Disabled
+`ChatGPTToCodexOAuthGuard`, **in memory only**. The response printed
+no raw command line, action arguments, script paths, token values or
+credentials, and made no changes.
+
+**Observed:** a WScript-family filename (`.vbs`, `.vbe`, `.wsf`, `.js`,
+or `.jse`) could be extracted from the active WScript command line
+and from each of the three task action argument strings. Their
+extracted **filenames match, case-insensitively, for all three**.
+Therefore comparing the basename alone cannot distinguish the
+original process launcher; multiple tasks may refer to a shared
+filename or script family, and the Disabled guard's basename match
+does not make it a running supervisor.
+
+**Not verified:** exact resolved script *paths*, an original task-run
+event tied to the 2026-10-17 10:42 process, or proof of which scheduled
+task (if any) created or currently supervises the PID. A separate
+attempt to compare full paths returned no successful diagnostic and
+must **not** be treated as a path match or a failure of a task itself.
+
+Next focused step, if independently approved and feasible, is a
+privacy-preserving full-path identity comparison/launcher linkage
+with **booleans only**. No task disabling, service restart, startup
+editing, auth-state reads, or MCP replacement is authorized by
+these observations.
 ## Next approval and safety gate
 
 Before an in-place single-MCP upgrade, identify who actually supervises
