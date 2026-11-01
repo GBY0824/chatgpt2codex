@@ -1,0 +1,118 @@
+// Synthetic policy tests only: this script NEVER inspects or changes an owner's PC,
+// scheduled tasks, OAuth state, network, installation or service. It proves that
+// a proposed migration plan fails closed when any known relaunch route is missed.
+import assert from "node:assert/strict";
+
+const requiredTasks = [
+  "ChatGPTToCodexEmergent-Watchdog",
+  "ChatGPTToCodexMcpSelfHealing",
+  "ChatGPTToCodexOAuthGuard",
+];
+
+function assess(plan) {
+  const blockers = [];
+  const block = (reason) => blockers.push(reason);
+  if (plan.inventoryComplete !== true) block("SUPERVISOR_INVENTORY_INCOMPLETE");
+  if (plan.otherAutostartRoutesExcluded !== true) block("UNKNOWN_RELAUNCH_ROUTE");
+  if (plan.ownerQuiescenceApproval !== true) block("OWNER_QUIESCENCE_APPROVAL_REQUIRED");
+  if (plan.ownerCutoverApproval !== true) block("OWNER_CUTOVER_APPROVAL_REQUIRED");
+  if (!Array.isArray(plan.tasks) || plan.tasks.length !== requiredTasks.length ||
+      new Set(plan.tasks.map(t => t.name)).size !== requiredTasks.length ||
+      requiredTasks.some(name => !plan.tasks.some(t => t.name === name))) {
+    block("TASK_INVENTORY_NOT_EXACT");
+  } else {
+    for (const task of plan.tasks) {
+      // Every registered launcher is handled, even when it currently reports
+      // Disabled. A task name, script-path equality or LastTaskResult=0
+      // does NOT identify which task historically launched a process.
+      if (task.presentVerified !== true || task.actionIdentityVerified !== true)
+        block("TASK_IDENTITY_UNVERIFIED:" + task.name);
+      if (task.enabled === true || task.running === true || task.disabledVerified !== true)
+        block("TASK_NOT_QUIESCED:" + task.name);
+    }
+  }
+  if (plan.startupEntryInspected !== true) block("STARTUP_ENTRY_NOT_INSPECTED");
+  if (plan.startupEntryPresent === true && plan.startupEntryDisabledVerified !== true)
+    block("STARTUP_RELAUNCH_STILL_POSSIBLE");
+  if (plan.startupEntryPresent !== true && plan.startupEntryPresent !== false)
+    block("STARTUP_ENTRY_PRESENCE_UNKNOWN");
+  if (plan.allTriggersQuiescenceVerified !== true)
+    block("TRIGGER_COVERAGE_UNVERIFIED");
+  if (plan.listenerPidCount !== 0 || plan.oldWriterStopped !== true)
+    block("LEGACY_WRITER_MAY_STILL_BE_RUNNING");
+  if (plan.noRelaunchProbeVerified !== true)
+    block("RELAUNCH_PREVENTION_NOT_OBSERVED");
+  if (plan.releaseProvenancePinned !== true) block("CANDIDATE_PROVENANCE_UNVERIFIED");
+  if (plan.oldProgramSnapshotVerified !== true) block("ORIGINAL_BACKUP_UNVERIFIED");
+  if (plan.oauthIssuerAndStateIdentityPinned !== true) block("OAUTH_STATE_OWNER_UNVERIFIED");
+  if (plan.privateStateBackupVerified !== true) block("OAUTH_STATE_BACKUP_UNVERIFIED");
+  if (plan.rollbackRehearsed !== true) block("ROLLBACK_UNVERIFIED");
+  if (plan.oldAndNewNeverShareLiveState !== true) block("DUAL_OAUTH_WRITER_RISK");
+  return {
+    syntheticPreconditionsMet: blockers.length === 0,
+    blockers,
+    // A synthetic fixture is NEVER a license to touch real port 7979.
+    productionCutoverAuthorized: false,
+  };
+}
+
+const approvedFixture = {
+  inventoryComplete: true,
+  otherAutostartRoutesExcluded: true,
+  ownerQuiescenceApproval: true,
+  ownerCutoverApproval: true,
+  tasks: requiredTasks.map(name => ({
+    name, presentVerified: true, actionIdentityVerified: true,
+    enabled: false, running: false, disabledVerified: true,
+  })),
+  startupEntryInspected: true,
+  startupEntryPresent: true,
+  startupEntryDisabledVerified: true,
+  allTriggersQuiescenceVerified: true,
+  listenerPidCount: 0,
+  oldWriterStopped: true,
+  noRelaunchProbeVerified: true,
+  releaseProvenancePinned: true,
+  oldProgramSnapshotVerified: true,
+  oauthIssuerAndStateIdentityPinned: true,
+  privateStateBackupVerified: true,
+  rollbackRehearsed: true,
+  oldAndNewNeverShareLiveState: true,
+};
+const scenarios = [
+  ["WATCHDOG_ACTIVE", p => { p.tasks[0].enabled = true; }, "TASK_NOT_QUIESCED:ChatGPTToCodexEmergent-Watchdog"],
+  ["SECOND_WATCHDOG_ACTIVE", p => { p.tasks[1].running = true; }, "TASK_NOT_QUIESCED:ChatGPTToCodexMcpSelfHealing"],
+  ["DISABLED_GUARD_UNVERIFIED", p => { p.tasks[2].disabledVerified = false; }, "TASK_NOT_QUIESCED:ChatGPTToCodexOAuthGuard"],
+  ["SHARED_SCRIPT_BUT_UNVERIFIED_IDENTITY", p => { p.tasks[0].actionIdentityVerified = false; }, "TASK_IDENTITY_UNVERIFIED:ChatGPTToCodexEmergent-Watchdog"],
+  ["UNKNOWN_TASK", p => { p.tasks[2].name = "DifferentTask"; }, "TASK_INVENTORY_NOT_EXACT"],
+  ["STARTUP_ENTRY_STILL_ENABLED", p => { p.startupEntryDisabledVerified = false; }, "STARTUP_RELAUNCH_STILL_POSSIBLE"],
+  ["UNINSPECTED_STARTUP", p => { p.startupEntryInspected = false; }, "STARTUP_ENTRY_NOT_INSPECTED"],
+  ["UNKNOWN_AUTOSTART", p => { p.otherAutostartRoutesExcluded = false; }, "UNKNOWN_RELAUNCH_ROUTE"],
+  ["SCHEDULER_TRIGGER_NOT_COVERED", p => { p.allTriggersQuiescenceVerified = false; }, "TRIGGER_COVERAGE_UNVERIFIED"],
+  ["OLD_LISTENER_STILL_RUNNING", p => { p.listenerPidCount = 1; }, "LEGACY_WRITER_MAY_STILL_BE_RUNNING"],
+  ["LEGACY_WRITER_NOT_STOPPED", p => { p.oldWriterStopped = false; }, "LEGACY_WRITER_MAY_STILL_BE_RUNNING"],
+  ["NO_RELAUNCH_PROBE", p => { p.noRelaunchProbeVerified = false; }, "RELAUNCH_PREVENTION_NOT_OBSERVED"],
+  ["UNPINNED_RELEASE", p => { p.releaseProvenancePinned = false; }, "CANDIDATE_PROVENANCE_UNVERIFIED"],
+  ["UNVERIFIED_PROGRAM_BACKUP", p => { p.oldProgramSnapshotVerified = false; }, "ORIGINAL_BACKUP_UNVERIFIED"],
+  ["UNKNOWN_OAUTH_ISSUER", p => { p.oauthIssuerAndStateIdentityPinned = false; }, "OAUTH_STATE_OWNER_UNVERIFIED"],
+  ["NO_PRIVATE_STATE_BACKUP", p => { p.privateStateBackupVerified = false; }, "OAUTH_STATE_BACKUP_UNVERIFIED"],
+  ["NO_ROLLBACK_PROOF", p => { p.rollbackRehearsed = false; }, "ROLLBACK_UNVERIFIED"],
+  ["CONCURRENT_OLD_AND_NEW", p => { p.oldAndNewNeverShareLiveState = false; }, "DUAL_OAUTH_WRITER_RISK"],
+  ["NO_QUIESCENCE_APPROVAL", p => { p.ownerQuiescenceApproval = false; }, "OWNER_QUIESCENCE_APPROVAL_REQUIRED"],
+  ["NO_CUTOVER_APPROVAL", p => { p.ownerCutoverApproval = false; }, "OWNER_CUTOVER_APPROVAL_REQUIRED"],
+  ["NOT_COMPLETE_INVENTORY", p => { p.inventoryComplete = false; }, "SUPERVISOR_INVENTORY_INCOMPLETE"],
+];
+const positive = assess(structuredClone(approvedFixture));
+assert.equal(positive.syntheticPreconditionsMet, true);
+assert.deepEqual(positive.blockers, []);
+assert.equal(positive.productionCutoverAuthorized, false);
+for (const [name, mutate, reason] of scenarios) {
+  const sample = structuredClone(approvedFixture);
+  mutate(sample);
+  const result = assess(sample);
+  assert.equal(result.syntheticPreconditionsMet, false, name);
+  assert.ok(result.blockers.includes(reason), name + ": " + result.blockers.join(", "));
+  assert.equal(result.productionCutoverAuthorized, false, name);
+}
+console.log("SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS cases=" + (scenarios.length + 1));
+console.log("productionCutoverAuthorized=false ownerHostTouched=false oauthRead=false tasksModified=false");
