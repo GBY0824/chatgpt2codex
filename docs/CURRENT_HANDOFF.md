@@ -1,5 +1,66 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — NEWEST INDEPENDENT SOURCE CI CLOSED 3/3
+
+**Fully VERIFIED code+workflow source SHA:**
+`5c2f392ee2c74ae180e1407805143b650e164e56`,
+[Actions 41362146220](https://github.com/GBY0824/chatgpt2codex/actions/runs/41362146220)
+**COMPLETED SUCCESS across all 3 jobs**: Linux
+`source-verification`, native Windows `windows-source-regressions`,
+and macOS `macos-control-regressions`.
+Read actual Linux and Windows job logs, not just job statuses:
+
+- `SYNTHETIC_GOAL_CROSS_PROCESS_INTENT_EXCLUSION_PASS`
+  on **BOTH Linux and Windows**, with **12 independent child
+  processes, 4 winning ON intent records, 9 stale-or-busy
+  rejected requests** (8 from concurrent contention + 1 preexisting
+  foreign lock). `noEffectsAuthorized=true`,
+  `originalConsumerTurnAttested=false`,
+  `liveOwnerStateRead=false`, and
+  `productionDeploymentApproved=false`.
+- Windows
+  `SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS
+  cases=50 negativeCases=48 positiveFixtures=2`.
+- Windows validated round-trip downloaded bundle integrity:
+  `DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=3480`.
+  This is an **uninstalled staged test artifact**, not a new
+  version of original owner Windows 7979.
+- Earlier repair-only SHA `1bddc0b4cde3801342bdb989e329fc983fad4fa4`
+  [Actions 41361889807](https://github.com/GBY0824/chatgpt2codex/actions/runs/41361889807)
+  also independently completed **SUCCESS 3/3**. The preceding
+  intermediate TS2322 failures were fixed, not hidden.
+
+**Production and GOAL trust boundary unchanged:** owner Windows
+read-only latest query: original port `7979` one listener,
+isolated port `7987` one listener, original main
+`ChatGPT To Codex MCP - Tailscale` task **Running**. Nothing
+was stopped, restarted, replaced, merged, scheduled or deployed.
+No private OAuth state or tokens read; never run old v0.2.0
+and candidate with shared live state. The actually installed
+watchdog does NOT match saved GitHub research source, and
+deployed relaunch dispatch remains unverified; a more detailed
+owner local AST inspection request had been denied and was
+not bypassed.
+
+This user-requested conversation is **manual continuation**,
+NOT an authenticated original consumer context-limit event.
+Actual GOAL research executions still **0**, actual unattended
+same-Project normal ChatGPT CHAT rollovers **0/2**. No synthetic
+CI receipt substitutes for either.
+
+**Next permitted safe work:** establish independently authorized
+deployed watcher/launcher/WScript/Startup role provenance, private
+OAuth issuer/state continuity and reversible migration gates,
+then request a SEPARATE explicit owner production cutover approval.
+Only afterward could one test real owner OAuth re-consent and
+provider-attested ordinary consumer CHAT events/successor creation.
+This commit updates documentation after the verified source CI and
+itself may create a newer docs-only Actions run; always re-check
+PR HEAD and exact run when resuming.
+
+---
+
+
 ## 2026-11-02 KST — GOAL APP INTENT LOCK OWNERSHIP + 3-PROCESS RACE TEST
 
 **Owner instruction:** proceed as far as safely possible in one
