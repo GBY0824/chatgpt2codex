@@ -1,5 +1,90 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 ~07:40 KST — CONTINUED: MAIN TASK RELAUNCH FENCE + WINDOWS PARSER REPAIR
+
+**Follow-up user request was `이어서 진행해`. This is a manual next turn,
+NOT an unattended ChatGPT rollover.** New work in fork DRAFT PR #1;
+existing production 7979, isolated stage 7987, live Windows Tasks,
+program installation, OAuth credentials/issuer and Chrome remain
+**unchanged**. The real GOAL research execution count is still **0**;
+ordinary ChatGPT Project CHAT unattended rollover **0/2**.
+
+1. **Verified GitHub baseline:** previous PR HEAD
+   `12ff8339c036c7aee9930fff8393e0ba99a55fba`,
+   [Actions 41341924389](https://github.com/GBY0824/chatgpt2codex/actions/runs/41341924389),
+   COMPLETED SUCCESS Linux/Windows/macOS **3/3** after the prior chat.
+2. **Live Windows, safe owner read-only connector:** original 7979 still
+   has exactly **one** listener, main
+   `ChatGPT To Codex MCP - Tailscale` Task Scheduler status Running.
+   Filename-presence-only check showed
+   `Watch-ChatGPTToCodexMcp.ps1` and
+   `Start-FixedTailscaleMcp.ps1` in the known local MCP launcher
+   directory. No script bytes, secrets, OAuth state or task settings
+   were read/modified. **This does not prove deployed script bytes
+   equal any GitHub saved version.**
+3. **Independent saved watchdog source analysis (not deployed evidence):**
+   `GBY0824/freqtrade-mcp-research` `main` contains
+   `tools/Watch-ChatGPTToCodexMcp.ps1`, blob
+   `c553fe6d740e37bb949025a7d8e41f27b3093256`.
+   That source calls `Start-ScheduledTask` for its main task on a
+   missing 7979 listener or an unhealthy expected local MCP endpoint,
+   the latter with a restart marker. Separate public-Funnel repair
+   primarily changes Tailscale transport. A matching installed
+   filename does NOT prove identical source/behavior; actual relaunch
+   has NOT been induced or observed.
+4. **Important safety omission fixed:** synthetic supervisor cutover
+   policy had not REQUIRED the real live Tailscale main task by name.
+   Code `aca982e7f5184f6515f1f35274fe7d7058bc97ff`
+   now requires its known Task Scheduler EnginePID-owner association,
+   treats it as non-optional legacy-relauncher, requires its running
+   instance to be stopped and its 5-retry/startup trigger pathways
+   suppressed. Missing/mislabeled/Running main task negative cases
+   added. [Actions 41359438356](https://github.com/GBY0824/chatgpt2codex/actions/runs/41359438356)
+   **COMPLETED SUCCESS 3/3** Linux/Windows/macOS;
+   Windows printed `SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS
+   cases=42 negativeCases=40 positiveFixtures=2`, integrated 10-case
+   Windows crash+FileShare PASS and sealed 3,480-file artifact
+   checksum PASS. **Synthetic, not deployed or cutover permission.**
+5. **Windows diagnostic parser issue found and repaired:**
+   `Inspect-OneMcpStartupReadOnly.ps1` previously used
+   `[IO.Path]::GetFileName` on external Task Scheduler
+   `Action.Execute` metadata and could throw on invalid input.
+   Source-only commit `7fc97030` introduced nonthrowing
+   WScript executable classification; workflow `e0679e80` added
+   9 pure synthetic test strings. Their initial Windows CI runs
+   [41359813513](https://github.com/GBY0824/chatgpt2codex/actions/runs/41359813513),
+   [41359827171](https://github.com/GBY0824/chatgpt2codex/actions/runs/41359827171)
+   **FAILED** due a new editing error: ordinary JS
+   `String.replace(old, replacementString)` expanded the embedded
+   PowerShell regex's literal `$'` sequence as a special replacement
+   token, duplicating/truncating the script and breaking its parser.
+   This is **not** a live host or OAuth failure.
+   **Repair commit**
+   `3d1f34bd85f75a097b7c18fc208d01213873b457`
+   restored the previously known-clean source at `12ff8339`
+   and reapplied the classifier patch via **callback-based replacement**,
+   with strict one-occurrence and structural checks. Matching
+   [Actions 41360030141](https://github.com/GBY0824/chatgpt2codex/actions/runs/41360030141)
+   was IN PROGRESS at original note; **check its exact Windows job
+   before claiming this repair all-platform PASS**.
+6. New detailed [owner startup evidence](./OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md)
+   and [one-MCP migration design](./MCP_SINGLE_RUNTIME_MIGRATION.md)
+   describe strict source-vs-deployment provenance and required
+   quiescence sequence. Previous known safe main_task/CI code SHA
+   is `aca982e7` until the repaired classifier CI completes.
+
+**Immediate next safe action:** fetch latest PR HEAD/Actions; if
+`3d1f34b` Windows CI fails, inspect precise failing step and repair
+with another regression, not guess. Then analyze real watchdog/Startup
+mode effects only under separately permitted sanitized inspection.
+Original live Task Scheduler EnginePID association with Tailscale is
+known; independent watchdog re-launch capability remains unverified.
+No live task disable, restart, install, OAuth read/rotation, merge,
+new automation, browser effect, or automatic rollover proof.
+
+---
+
+
 ## 2026-11-02 KST — NEW SOURCE INSPECTOR / INTEGRITY TESTS
 
 New fork-only **read-only** diagnostic source
