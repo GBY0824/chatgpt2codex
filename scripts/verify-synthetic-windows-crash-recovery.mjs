@@ -125,7 +125,13 @@ async function recover(root) {
   if (old !== j.originalDigest) reject('SYNTHETIC_RETIRED_ORIGINAL_CORRUPT');
   if (current !== null && current !== j.candidateDigest)
     reject('SYNTHETIC_UNKNOWN_INSTALLED_BYTES');
-  if (await exists(f['quarantined-candidate'])) reject('SYNTHETIC_QUARANTINE_COLLISION');
+  const quarantine = await digest(f['quarantined-candidate']);
+  // A previous recovery process may have crashed AFTER quarantining the
+  // candidate but BEFORE restoring the retired original. Resume safely.
+  if (quarantine !== null &&
+      !(current === null && quarantine === j.candidateDigest)) {
+    reject('SYNTHETIC_QUARANTINE_COLLISION');
+  }
   if (current !== null) {
     await fs.rename(f.installed, f['quarantined-candidate']);
     crashIf('after-quarantine');
