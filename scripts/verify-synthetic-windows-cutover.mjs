@@ -85,12 +85,17 @@ async function runCase(name, fault) {
   let expectedFailure = false;
   let causeCode = '';
   try {
-    assert.equal(await fs.readFile(path.join(installed, '.synthetic-mcp-marker'), 'utf8'),
-      expectedMarker, 'SYNTHETIC_LEGACY_MARKER_REQUIRED');
     if (fault === 'missing-marker') {
       await fs.rm(path.join(installed, '.synthetic-mcp-marker'));
-      throw new Error('SYNTHETIC_MARKER_MISSING');
     }
+    // The same preflight rule is checked by the production-like path,
+    // not by a test-only throw that could conceal a missing safety gate.
+    const marker = await fs.readFile(path.join(installed, '.synthetic-mcp-marker'), 'utf8')
+      .catch((error) => {
+        if (error?.code === 'ENOENT') throw new Error('SYNTHETIC_MARKER_MISSING');
+        throw error;
+      });
+    assert.equal(marker, expectedMarker, 'SYNTHETIC_LEGACY_MARKER_INVALID');
     if (fault === 'running-service') {
       throw new Error('SYNTHETIC_RUNNING_SERVICE_DENIED');
     }
