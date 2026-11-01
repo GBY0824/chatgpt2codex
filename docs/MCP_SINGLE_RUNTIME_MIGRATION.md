@@ -367,3 +367,27 @@ The review-only Windows staging archive now includes both
 `Inspect-OneMcpStartupReadOnly.ps1` under its checksum manifest.
 Their presence is checked after the offline copy. This is for a later
 explicitly owner-approved preflight, not an auto-upgrade or cutover.
+
+## Offline staging hardening: hidden files and reparse paths
+
+The preparatory `scripts/Prepare-GoalAppOfflineStage.ps1` now enumerates
+**all files including Windows Hidden files** via `Get-ChildItem -Force`,
+and rejects files not declared by `SHA256SUMS.txt`. It also checks
+each existing path component before staging and rejects directory
+junctions, symbolic links, and other reparse points in input files
+or folders, even when the referenced path would otherwise look
+textually disjoint from the protected production directory.
+
+On GitHub-hosted Windows, CI first demonstrates the normal offline
+bundle preparation succeeds, then mutates the README and confirms
+`STAGE_SHA256_MISMATCH`, restores it, adds a new file with the Windows
+`Hidden` attribute and confirms `STAGE_UNLISTED_FILE`, removes it,
+creates a temporary junction to an outside folder and confirms the
+reparse point cannot pass verification. The temporary junction and
+negative test artifacts are not part of the sealed published package.
+The downloaded artifact is independently re-verified and replayed.
+
+These are **offline package acceptance tests**, not an owner-PC
+installation, proof against all possible race conditions, a trusted
+publisher signature, or production cutover authorization. Never
+apply the old force-copy installer to the live 7979 installation.
