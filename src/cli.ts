@@ -188,11 +188,16 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
     const loopbackHost = hostValue === "127.0.0.1" || hostValue === "localhost" || hostValue === "::1";
     const publicLoopback = publicOrigin.hostname === "127.0.0.1"
       || publicOrigin.hostname === "localhost" || publicOrigin.hostname === "[::1]";
+    if (isControlEnabled()) {
+      throw new Error(
+        "ISOLATED_STAGE_DESKTOP_CONTROL_MUST_BE_DISABLED: " +
+        "set CHATGPT2CODEX_CONTROL=0 for the staging process only",
+      );
+    }
     if (portValue === 7979 || !Number.isSafeInteger(portValue)
         || portValue < 1 || portValue > 65535 || !loopbackHost
         || publicOrigin.protocol !== "http:" || !publicLoopback
-        || Number(publicOrigin.port || (publicOrigin.protocol === "http:" ? "80" : "443")) !== portValue
-        || isControlEnabled()) {
+        || Number(publicOrigin.port || (publicOrigin.protocol === "http:" ? "80" : "443")) !== portValue) {
       throw new Error("ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED");
     }
   }
