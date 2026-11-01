@@ -22,7 +22,10 @@ describe("isolated review state selection (production default is invariant)", ()
     expect(await resolveIsolatedStateDir(undefined, production)).toBe(production);
   });
   it("accepts a separate absolute path without creating it", async () => {
-    expect(await resolveIsolatedStateDir(isolated, production)).toBe(isolated);
+    // Canonicalization expands macOS /var -> /private/var and Windows 8.3 aliases.
+    expect(await resolveIsolatedStateDir(isolated, production)).toBe(
+      path.join(await fs.realpath(root), path.basename(isolated)),
+    );
     await expect(fs.stat(isolated)).rejects.toMatchObject({ code: "ENOENT" });
   });
   it("rejects a CLI bare flag or empty/relative paths", async () => {
