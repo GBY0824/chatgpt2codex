@@ -9,6 +9,7 @@ on:
       - "src/server/http.ts"
       - "src/server/tools.ts"
       - "src/server/tools-catalog.test.ts"
+      - "src/server/mcp-remote-control.test.ts"
       - ".github/workflows/goal-app-auth-review.yml"
 
 permissions:
@@ -28,7 +29,7 @@ jobs:
       - name: Full TypeScript typecheck
         run: npm run typecheck
       - name: GOAL intent and MCP tool catalog regressions
-        run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts
+        run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts
       - name: Full source build (no deployment)
         run: npm run build
 
