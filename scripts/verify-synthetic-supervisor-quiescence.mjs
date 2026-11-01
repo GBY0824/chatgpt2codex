@@ -16,8 +16,17 @@ function assess(plan) {
   if (plan.otherAutostartRoutesExcluded !== true) block("UNKNOWN_RELAUNCH_ROUTE");
   if (plan.ownerQuiescenceApproval !== true) block("OWNER_QUIESCENCE_APPROVAL_REQUIRED");
   if (plan.ownerCutoverApproval !== true) block("OWNER_CUTOVER_APPROVAL_REQUIRED");
-  if (!Array.isArray(plan.tasks) || plan.tasks.length !== requiredTasks.length ||
-      new Set(plan.tasks.map(t => t.name)).size !== requiredTasks.length ||
+  if (plan.schedulerActionScanComplete !== true || plan.enumeratedActions < plan.enumeratedWscriptActions)
+    block("ACTION_SCAN_INCOMPLETE");
+  if (plan.unparseableWscriptActions !== 0) block("ACTION_SCAN_UNPARSEABLE");
+  // The three named candidates are NOT the whole universe. Read-only owner
+  // inspection found seven scheduled actions pointing to the SAME script.
+  // Never hardcode three (or seven) as a production complete-inventory count:
+  // discover all task actions and demand a one-to-one snapshot.
+  if (!Array.isArray(plan.tasks) || !Number.isInteger(plan.enumeratedMatchingTaskCount) ||
+      plan.enumeratedMatchingTaskCount < requiredTasks.length ||
+      plan.tasks.length !== plan.enumeratedMatchingTaskCount ||
+      new Set(plan.tasks.map(t => t.name)).size !== plan.tasks.length ||
       requiredTasks.some(name => !plan.tasks.some(t => t.name === name))) {
     block("TASK_INVENTORY_NOT_EXACT");
   } else {
@@ -61,7 +70,14 @@ const approvedFixture = {
   otherAutostartRoutesExcluded: true,
   ownerQuiescenceApproval: true,
   ownerCutoverApproval: true,
-  tasks: requiredTasks.map(name => ({
+  // Seven is just this synthetic fixture's size, not a production assumption.
+  enumeratedActions: 236,
+  enumeratedWscriptActions: 9,
+  unparseableWscriptActions: 0,
+  schedulerActionScanComplete: true,
+  enumeratedMatchingTaskCount: 7,
+  tasks: [...requiredTasks, "SyntheticSharedRouteA", "SyntheticSharedRouteB",
+    "SyntheticSharedRouteC", "SyntheticSharedRouteD"].map(name => ({
     name, presentVerified: true, actionIdentityVerified: true,
     enabled: false, running: false, disabledVerified: true,
   })),
@@ -85,6 +101,12 @@ const scenarios = [
   ["DISABLED_GUARD_UNVERIFIED", p => { p.tasks[2].disabledVerified = false; }, "TASK_NOT_QUIESCED:ChatGPTToCodexOAuthGuard"],
   ["SHARED_SCRIPT_BUT_UNVERIFIED_IDENTITY", p => { p.tasks[0].actionIdentityVerified = false; }, "TASK_IDENTITY_UNVERIFIED:ChatGPTToCodexEmergent-Watchdog"],
   ["UNKNOWN_TASK", p => { p.tasks[2].name = "DifferentTask"; }, "TASK_INVENTORY_NOT_EXACT"],
+  ["FOURTH_ROUTE_ENABLED", p => { p.tasks[3].enabled = true; }, "TASK_NOT_QUIESCED:SyntheticSharedRouteA"],
+  ["SEVENTH_ROUTE_RUNNING", p => { p.tasks[6].running = true; }, "TASK_NOT_QUIESCED:SyntheticSharedRouteD"],
+  ["HIDDEN_ROUTE_OMITTED", p => { p.tasks.pop(); }, "TASK_INVENTORY_NOT_EXACT"],
+  ["WRONG_SHARED_SCRIPT_COUNT", p => { p.enumeratedMatchingTaskCount = 3; }, "TASK_INVENTORY_NOT_EXACT"],
+  ["UNPARSEABLE_ACTION", p => { p.unparseableWscriptActions = 1; }, "ACTION_SCAN_UNPARSEABLE"],
+  ["INCOMPLETE_ACTION_SCAN", p => { p.schedulerActionScanComplete = false; }, "ACTION_SCAN_INCOMPLETE"],
   ["STARTUP_ENTRY_STILL_ENABLED", p => { p.startupEntryDisabledVerified = false; }, "STARTUP_RELAUNCH_STILL_POSSIBLE"],
   ["UNINSPECTED_STARTUP", p => { p.startupEntryInspected = false; }, "STARTUP_ENTRY_NOT_INSPECTED"],
   ["UNKNOWN_AUTOSTART", p => { p.otherAutostartRoutesExcluded = false; }, "UNKNOWN_RELAUNCH_ROUTE"],
