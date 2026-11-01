@@ -275,6 +275,32 @@ watchdog and Startup routes. Disabling only one named watchdog
 cannot establish safe quiescence. This is an inventory finding,
 not permission to disable, stop or overwrite anything.
 
+### Reproducible read-only source inspector (candidate only)
+
+Source commit `33681c3d77a41556fce5b5bd139a58abe7db1331`
+extends `scripts/Inspect-OneMcpStartupReadOnly.ps1` to perform a
+read-only `IRunningTask.EnginePID` comparison **only when a verified
+WScript ancestor exists**, checking that the original listener and
+ancestor remain the same after scanning. New output fields are
+`taskEngineInstanceScanCompleted`,
+`liveWscriptTaskEngineMatchCount` and
+`liveWscriptTailscaleInstanceMatch`. All default to false/zero and
+any inaccessible scheduler metadata fails closed. The inspector
+does **not** fetch or output process/task command lines, arguments,
+raw process identifiers, private paths or OAuth data, and retains
+`identifiedOwnerScheduledTask=false`,
+`legacyAutoRelaunchSafetyVerified=false`, and
+`productionCutoverAuthorized=false` because live instance identity
+does not prove all independent restart mechanisms.
+
+Workflow source commit `9f1bbb01bef23428cdc1b33137069a890a7430e7`
+adds a hosted Windows synthetic listener assertion that any reported
+Tailscale engine match must be backed by a complete scan and exactly
+one match. This is **source-only**; the owner-PC installation was NOT
+updated. Positive direct owner-host COM identity evidence is the
+separately recorded read-only Codex query above. Check exact matching
+GitHub Actions run status before reporting a new regression PASS.
+
 ## Next approval and safety gate
 
 Before an in-place single-MCP upgrade, identify who actually supervises
