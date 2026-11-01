@@ -49,7 +49,12 @@ function validateCaller(caller: VerifiedAppCaller | undefined, remote: boolean):
   }
   // The remote HTTP transport verifies bearer token and audience/resource.
   // The model must NEVER supply these fields as tool arguments.
-  if (!(caller.resource instanceof URL) || caller.resource.protocol !== "https:") {
+  const resource = caller.resource;
+  const isHttps = resource instanceof URL && resource.protocol === "https:";
+  const isLocalDevelopment = resource instanceof URL
+    && resource.protocol === "http:"
+    && (resource.hostname === "127.0.0.1" || resource.hostname === "localhost");
+  if (!isHttps && !isLocalDevelopment) {
     throw new GoalAppCommandError("APP_GOAL_RESOURCE_UNVERIFIED");
   }
 }
