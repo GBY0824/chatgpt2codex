@@ -174,6 +174,25 @@ async function cmdServeStdio(flags: Record<string, string | boolean>): Promise<v
 async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<void> {
   const workspace = typeof flags.workspace === "string" ? flags.workspace : process.cwd();
   const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
+  // Side-by-side review must never reuse the installed service's default port,
+  // inherit desktop-control authority or accidentally expose the stage.
+  if (flags["isolated-state-dir"] !== undefined) {
+    const portValue = typeof flags.port === "string" ? Number(flags.port) : 7979;
+    const hostValue = typeof flags.host === "string" ? flags.host : "127.0.0.1";
+    const publicValue = typeof flags["public-url"] === "string"
+      ? flags["public-url"] : `http://${hostValue}:${portValue}`;
+    const publicOrigin = new URL(publicValue);
+    const loopbackHost = hostValue === "127.0.0.1" || hostValue === "localhost" || hostValue === "::1";
+    const publicLoopback = publicOrigin.hostname === "127.0.0.1"
+      || publicOrigin.hostname === "localhost" || publicOrigin.hostname === "[::1]";
+    if (portValue === 7979 || !Number.isSafeInteger(portValue)
+        || portValue < 1 || portValue > 65535 || !loopbackHost
+        || publicOrigin.protocol !== "http:" || !publicLoopback
+        || Number(publicOrigin.port || (publicOrigin.protocol === "http:" ? "80" : "443")) !== portValue
+        || isControlEnabled()) {
+      throw new Error("ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED");
+    }
+  }
   const ctx = await buildToolContext(workspace, stateDir);
 
   if (!(await hasOwnerToken(ctx.stateDir))) {
@@ -346,6 +365,9 @@ async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<v
  * HTTP route that calls approveAction, setKill, or setAuto.
  */
 async function cmdControl(positional: string[], flags: Record<string, string | boolean> = {}): Promise<void> {
+  if (flags["isolated-state-dir"] !== undefined) {
+    throw new Error("ISOLATED_STAGE_DESKTOP_CONTROL_FORBIDDEN");
+  }
   const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
   const [sub, actionId] = positional;
   switch (sub) {
