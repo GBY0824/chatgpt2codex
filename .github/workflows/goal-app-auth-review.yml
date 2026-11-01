@@ -145,6 +145,10 @@ jobs:
                 $observed.multipleRecentWscriptCandidatesObserved -ne ($observed.recentlySuccessfulWscriptTaskCandidateCount -ge 2) -or
                 $observed.taskEventLogCorrelationEstablished -or
                 $observed.legacyAutoRelaunchSafetyVerified -or
+                $observed.liveWscriptTaskEngineMatchCount -lt 0 -or
+                ($observed.liveWscriptTailscaleInstanceMatch -and
+                  (-not $observed.taskEngineInstanceScanCompleted -or
+                   $observed.liveWscriptTaskEngineMatchCount -ne 1)) -or
                 $observed.automaticStartupMechanismIdentified -or
                 $observed.fullProcessCommandLineRead -or
                 $observed.credentialsRead -or
