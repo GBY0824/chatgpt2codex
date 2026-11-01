@@ -220,41 +220,72 @@ jobs:
           }
           $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
           if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
-      - name: Read-only single-MCP provenance and nonpromotable stage fences
+      - name: Read-only full SHA256 bundle, pinned source, and nonpromotable stage fences
         shell: pwsh
         run: |
-          $testOriginal = Join-Path $env:RUNNER_TEMP "synthetic-existing-mcp"
-          New-Item -ItemType Directory -Path (Join-Path $testOriginal "dist") -Force | Out-Null
-          "synthetic-installed-legacy" | Set-Content -Path (Join-Path $testOriginal "dist/cli.js") -Encoding ascii
-          Copy-Item package.json -Destination (Join-Path $testOriginal "package.json")
-          $result = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $testOriginal -CandidateStageDir (Resolve-Path "staging-release").Path | ConvertFrom-Json
+          $sourceSha = "${{ github.event.pull_request.head.sha }}"
+          $original = Join-Path $env:RUNNER_TEMP "synthetic-existing-mcp"
+          New-Item -ItemType Directory -Path (Join-Path $original "dist") -Force | Out-Null
+          "synthetic-installed-legacy" | Set-Content -Path (Join-Path $original "dist/cli.js") -Encoding ascii
+          Copy-Item package.json -Destination (Join-Path $original "package.json")
+          $bundle = (Resolve-Path "staging-release").Path
+          $result = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $bundle -ExpectedSourceSha $sourceSha | ConvertFrom-Json
           if ($result.code -ne "READONLY_SINGLE_MCP_CUTOVER_PREFLIGHT" -or
               -not $result.candidateHasReviewProvenance -or
               -not $result.candidateHasSelfConsistentCriticalManifest -or
+              -not $result.candidateFullManifestVerified -or
+              -not $result.candidatePinnedSourceMatches -or
+              -not $result.candidatePassesReadOnlyIntegrityGates -or
+              -not $result.fullBundleManifestVerified -or
               $result.productionCutoverAuthorized -or
               $result.productionChanged -or
               $result.credentialsRead -or
-              $result.installedUserStateInspected -or
-              $result.fullBundleManifestVerified) {
-            throw "Review-only provenance preflight failed or granted unsafe authority"
+              $result.installedUserStateInspected) {
+            throw "Full staged bundle read-only gate failed or granted unsafe authority"
+          }
+          $unpinned = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $bundle | ConvertFrom-Json
+          if ($unpinned.candidatePinnedSourceMatches -or $unpinned.candidatePassesReadOnlyIntegrityGates -or
+              "PINNED_SOURCE_SHA_REQUIRED" -notin $unpinned.reasons) {
+            throw "Unpinned source was incorrectly accepted"
+          }
+          $wrongSha = "0000000000000000000000000000000000000000"
+          $wrong = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $bundle -ExpectedSourceSha $wrongSha | ConvertFrom-Json
+          if ($wrong.candidatePinnedSourceMatches -or $wrong.candidatePassesReadOnlyIntegrityGates -or
+              "CANDIDATE_SOURCE_SHA_MISMATCH" -notin $wrong.reasons) {
+            throw "Wrong pinned source was incorrectly accepted"
           }
           $oldStage = Join-Path $env:RUNNER_TEMP "synthetic-unproven-stage"
           New-Item -ItemType Directory -Path (Join-Path $oldStage "dist") -Force | Out-Null
-          Copy-Item (Join-Path "staging-release" "dist/cli.js") (Join-Path $oldStage "dist/cli.js")
+          Copy-Item (Join-Path $bundle "dist/cli.js") (Join-Path $oldStage "dist/cli.js")
           Copy-Item package.json -Destination (Join-Path $oldStage "package.json")
-          $legacy = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $testOriginal -CandidateStageDir $oldStage | ConvertFrom-Json
-          if ($legacy.candidateHasReviewProvenance -or $legacy.candidateHasSelfConsistentCriticalManifest -or
-              $legacy.productionCutoverAuthorized -or
+          $legacy = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $oldStage -ExpectedSourceSha $sourceSha | ConvertFrom-Json
+          if ($legacy.candidateHasReviewProvenance -or $legacy.candidateFullManifestVerified -or
+              $legacy.candidatePassesReadOnlyIntegrityGates -or
               "CANDIDATE_PROVENANCE_MISSING_OR_INVALID" -notin $legacy.reasons) {
-            throw "Unproven older candidate was incorrectly treated as promotable"
+            throw "Old unproven stage incorrectly passed"
+          }
+          $tampered = Join-Path $env:RUNNER_TEMP "synthetic-tampered-bundle"
+          Copy-Item -LiteralPath $bundle -Destination $tampered -Recurse
+          ".extra hidden file" | Set-Content -Path (Join-Path $tampered ".unmanifested-hidden") -Encoding ascii
+          $extra = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $tampered -ExpectedSourceSha $sourceSha | ConvertFrom-Json
+          if ($extra.candidateFullManifestVerified -or $extra.candidatePassesReadOnlyIntegrityGates -or
+              "CANDIDATE_FULL_MANIFEST_INVALID" -notin $extra.reasons) {
+            throw "Unmanifested hidden file passed full bundle verification"
+          }
+          Remove-Item -LiteralPath (Join-Path $tampered ".unmanifested-hidden") -Force
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tampered"
+          $mutated = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $tampered -ExpectedSourceSha $sourceSha | ConvertFrom-Json
+          if ($mutated.candidateFullManifestVerified -or $mutated.candidatePassesReadOnlyIntegrityGates -or
+              "CANDIDATE_FULL_MANIFEST_INVALID" -notin $mutated.reasons) {
+            throw "Modified noncritical file passed full bundle verification"
           }
           try {
-            & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $testOriginal -CandidateStageDir $testOriginal | Out-Null
-            throw "The same real path was not rejected"
+            & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $original -ExpectedSourceSha $sourceSha | Out-Null
+            throw "Same path was not rejected"
           } catch {
             if ($_.Exception.Message -notmatch "READONLY_PREFLIGHT_PATH_OVERLAP") { throw }
           }
-          Write-Host "SINGLE_MCP_READONLY_PREFLIGHT_TESTS_PASS"
+          Write-Host "SINGLE_MCP_FULL_MANIFEST_AND_PINNED_SOURCE_PREFLIGHT_PASS"
       - name: Verify offline stage preparation and tamper rejection
         shell: pwsh
         run: |
