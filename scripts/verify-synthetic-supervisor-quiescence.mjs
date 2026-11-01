@@ -3,7 +3,9 @@
 // a proposed migration plan fails closed when any known relaunch route is missed.
 import assert from "node:assert/strict";
 
+const liveMainTaskName = "ChatGPT To Codex MCP - Tailscale";
 const requiredTasks = [
+  liveMainTaskName,
   "ChatGPTToCodexEmergent-Watchdog",
   "ChatGPTToCodexMcpSelfHealing",
   "ChatGPTToCodexOAuthGuard",
@@ -16,6 +18,8 @@ function assess(plan) {
   if (plan.otherAutostartRoutesExcluded !== true) block("UNKNOWN_RELAUNCH_ROUTE");
   if (plan.ownerQuiescenceApproval !== true) block("OWNER_QUIESCENCE_APPROVAL_REQUIRED");
   if (plan.ownerCutoverApproval !== true) block("OWNER_CUTOVER_APPROVAL_REQUIRED");
+  if (plan.originalTaskEngineOwnerVerified !== true)
+    block("LIVE_MAIN_TASK_ENGINE_OWNER_UNVERIFIED");
   if (plan.schedulerActionScanComplete !== true ||
       !Number.isSafeInteger(plan.enumeratedActions) || plan.enumeratedActions < 0 ||
       !Number.isSafeInteger(plan.enumeratedWscriptActions) || plan.enumeratedWscriptActions < 0 ||
@@ -42,6 +46,19 @@ function assess(plan) {
       // of active restart authority.
       if (task.presentVerified !== true || task.actionIdentityVerified !== true)
         block("TASK_IDENTITY_UNVERIFIED:" + task.name);
+      if (task.name === liveMainTaskName) {
+        // The live Task Scheduler EnginePID was independently correlated
+        // with the original 7979 WScript ancestor. It is not optional and
+        // cannot be relabeled as an unrelated OSINT/Tailscale action.
+        if (task.routeRole !== "legacy-relauncher")
+          block("LIVE_MAIN_TASK_MUST_REMAIN_LEGACY_RELAUNCHER");
+        if (task.taskEngineInstanceStoppedVerified !== true)
+          block("LIVE_MAIN_RUNNING_INSTANCE_NOT_STOPPED");
+        if (task.restartSuppressionVerified !== true)
+          block("LIVE_MAIN_RESTART_POLICY_NOT_SUPPRESSED");
+        if (task.allScheduledTriggersDisabledVerified !== true)
+          block("LIVE_MAIN_LOGON_TRIGGER_NOT_SUPPRESSED");
+      }
       if (task.routeRole === "legacy-relauncher") {
         if (task.enabled === true || task.running === true || task.disabledVerified !== true)
           block("TASK_NOT_QUIESCED:" + task.name);
@@ -83,6 +100,7 @@ const approvedFixture = {
   otherAutostartRoutesExcluded: true,
   ownerQuiescenceApproval: true,
   ownerCutoverApproval: true,
+  originalTaskEngineOwnerVerified: true,
   // Seven is just this synthetic fixture's size, not a production assumption.
   enumeratedActions: 236,
   enumeratedWscriptActions: 9,
@@ -90,10 +108,13 @@ const approvedFixture = {
   schedulerActionScanComplete: true,
   enumeratedMatchingTaskCount: 7,
   tasks: [...requiredTasks, "SyntheticSharedRouteA", "SyntheticSharedRouteB",
-    "SyntheticSharedRouteC", "SyntheticSharedRouteD"].map(name => ({
+    "SyntheticSharedRouteC"].map(name => ({
     name, presentVerified: true, actionIdentityVerified: true,
     routeRole: "legacy-relauncher", noLegacyRelaunchProof: false,
     noSharedOAuthWriterProof: false,
+    taskEngineInstanceStoppedVerified: true,
+    restartSuppressionVerified: true,
+    allScheduledTriggersDisabledVerified: true,
     enabled: false, running: false, disabledVerified: true,
   })),
   startupEntryInspected: true,
@@ -115,7 +136,7 @@ const approvedFixture = {
 // and concurrent writes to the legacy OAuth state. This is NOT a factual
 // classification of any real owner task; no real tasks are touched.
 const isolatedModeFixture = structuredClone(approvedFixture);
-for (const task of isolatedModeFixture.tasks.slice(3)) {
+for (const task of isolatedModeFixture.tasks.slice(4)) {
   task.routeRole = "verified-unrelated";
   task.noLegacyRelaunchProof = true;
   task.noSharedOAuthWriterProof = true;
@@ -126,13 +147,20 @@ for (const task of isolatedModeFixture.tasks.slice(3)) {
 assert.equal(assess(isolatedModeFixture).syntheticPreconditionsMet, true);
 
 const scenarios = [
-  ["WATCHDOG_ACTIVE", p => { p.tasks[0].enabled = true; }, "TASK_NOT_QUIESCED:ChatGPTToCodexEmergent-Watchdog"],
-  ["SECOND_WATCHDOG_ACTIVE", p => { p.tasks[1].running = true; }, "TASK_NOT_QUIESCED:ChatGPTToCodexMcpSelfHealing"],
-  ["DISABLED_GUARD_UNVERIFIED", p => { p.tasks[2].disabledVerified = false; }, "TASK_NOT_QUIESCED:ChatGPTToCodexOAuthGuard"],
-  ["SHARED_SCRIPT_BUT_UNVERIFIED_IDENTITY", p => { p.tasks[0].actionIdentityVerified = false; }, "TASK_IDENTITY_UNVERIFIED:ChatGPTToCodexEmergent-Watchdog"],
-  ["UNKNOWN_TASK", p => { p.tasks[2].name = "DifferentTask"; }, "TASK_INVENTORY_NOT_EXACT"],
-  ["FOURTH_ROUTE_ENABLED", p => { p.tasks[3].enabled = true; }, "TASK_NOT_QUIESCED:SyntheticSharedRouteA"],
-  ["SEVENTH_ROUTE_RUNNING", p => { p.tasks[6].running = true; }, "TASK_NOT_QUIESCED:SyntheticSharedRouteD"],
+  ["WATCHDOG_ACTIVE", p => { p.tasks[1].enabled = true; }, "TASK_NOT_QUIESCED:ChatGPTToCodexEmergent-Watchdog"],
+  ["LIVE_MAIN_RUNNING", p => { p.tasks[0].running = true; }, "TASK_NOT_QUIESCED:ChatGPT To Codex MCP - Tailscale"],
+  ["LIVE_MAIN_TASK_ENGINE_UNVERIFIED", p => { p.originalTaskEngineOwnerVerified = false; }, "LIVE_MAIN_TASK_ENGINE_OWNER_UNVERIFIED"],
+  ["LIVE_MAIN_ENGINE_STILL_ACTIVE", p => { p.tasks[0].taskEngineInstanceStoppedVerified = false; }, "LIVE_MAIN_RUNNING_INSTANCE_NOT_STOPPED"],
+  ["LIVE_MAIN_RESTARTS_NOT_SUPPRESSED", p => { p.tasks[0].restartSuppressionVerified = false; }, "LIVE_MAIN_RESTART_POLICY_NOT_SUPPRESSED"],
+  ["LIVE_MAIN_LOGON_TRIGGER_ACTIVE", p => { p.tasks[0].allScheduledTriggersDisabledVerified = false; }, "LIVE_MAIN_LOGON_TRIGGER_NOT_SUPPRESSED"],
+  ["LIVE_MAIN_FALSIFIED_AS_UNRELATED", p => { p.tasks[0].routeRole = "verified-unrelated"; p.tasks[0].noLegacyRelaunchProof = true; p.tasks[0].noSharedOAuthWriterProof = true; }, "LIVE_MAIN_TASK_MUST_REMAIN_LEGACY_RELAUNCHER"],
+  ["LIVE_MAIN_TASK_OMITTED", p => { p.tasks.shift(); p.enumeratedMatchingTaskCount -= 1; }, "TASK_INVENTORY_NOT_EXACT"],
+  ["SECOND_WATCHDOG_ACTIVE", p => { p.tasks[2].running = true; }, "TASK_NOT_QUIESCED:ChatGPTToCodexMcpSelfHealing"],
+  ["DISABLED_GUARD_UNVERIFIED", p => { p.tasks[3].disabledVerified = false; }, "TASK_NOT_QUIESCED:ChatGPTToCodexOAuthGuard"],
+  ["SHARED_SCRIPT_BUT_UNVERIFIED_IDENTITY", p => { p.tasks[1].actionIdentityVerified = false; }, "TASK_IDENTITY_UNVERIFIED:ChatGPTToCodexEmergent-Watchdog"],
+  ["UNKNOWN_TASK", p => { p.tasks[3].name = "DifferentTask"; }, "TASK_INVENTORY_NOT_EXACT"],
+  ["FOURTH_ROUTE_ENABLED", p => { p.tasks[4].enabled = true; }, "TASK_NOT_QUIESCED:SyntheticSharedRouteA"],
+  ["SEVENTH_ROUTE_RUNNING", p => { p.tasks[6].running = true; }, "TASK_NOT_QUIESCED:SyntheticSharedRouteC"],
   ["HIDDEN_ROUTE_OMITTED", p => { p.tasks.pop(); }, "TASK_INVENTORY_NOT_EXACT"],
   ["WRONG_SHARED_SCRIPT_COUNT", p => { p.enumeratedMatchingTaskCount = 3; }, "TASK_INVENTORY_NOT_EXACT"],
   ["UNPARSEABLE_ACTION", p => { p.unparseableWscriptActions = 1; }, "ACTION_SCAN_UNPARSEABLE"],
@@ -141,8 +169,8 @@ const scenarios = [
   ["MISSING_WSCRIPT_ACTION_COUNT", p => { delete p.enumeratedWscriptActions; }, "ACTION_SCAN_INCOMPLETE"],
   ["NEGATIVE_ACTION_COUNT", p => { p.enumeratedActions = -1; }, "ACTION_SCAN_INCOMPLETE"],
   ["IMPOSSIBLE_MATCH_COUNT", p => { p.enumeratedWscriptActions = 6; }, "ACTION_SCAN_INCOMPLETE"],
-  ["UNKNOWN_TASK_ROLE", p => { p.tasks[4].routeRole = "unknown"; }, "TASK_RELAUNCH_ROLE_UNVERIFIED:SyntheticSharedRouteB"],
-  ["FALSE_UNRELATED_CLAIM", p => { p.tasks[4].routeRole = "verified-unrelated"; }, "UNRELATED_ROUTE_ISOLATION_UNVERIFIED:SyntheticSharedRouteB"],
+  ["UNKNOWN_TASK_ROLE", p => { p.tasks[5].routeRole = "unknown"; }, "TASK_RELAUNCH_ROLE_UNVERIFIED:SyntheticSharedRouteB"],
+  ["FALSE_UNRELATED_CLAIM", p => { p.tasks[5].routeRole = "verified-unrelated"; }, "UNRELATED_ROUTE_ISOLATION_UNVERIFIED:SyntheticSharedRouteB"],
   ["STARTUP_ENTRY_STILL_ENABLED", p => { p.startupEntryDisabledVerified = false; }, "STARTUP_RELAUNCH_STILL_POSSIBLE"],
   ["UNINSPECTED_STARTUP", p => { p.startupEntryInspected = false; }, "STARTUP_ENTRY_NOT_INSPECTED"],
   ["UNKNOWN_AUTOSTART", p => { p.otherAutostartRoutesExcluded = false; }, "UNKNOWN_RELAUNCH_ROUTE"],
