@@ -18,9 +18,28 @@ function Assert-Disjoint([string]$Destination, [string]$Protected, [string]$Code
     throw $Code
   }
 }
+function Assert-NoReparseAncestors([string]$Path) {
+  # A textual "disjoint" comparison is unsafe if an ancestor is a junction.
+  # Check existing path components before opening a source or creating a target.
+  $cursor = [IO.Path]::GetFullPath($Path)
+  while ($true) {
+    if (Test-Path -LiteralPath $cursor) {
+      $item = Get-Item -LiteralPath $cursor -Force -ErrorAction Stop
+      if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw 'STAGE_REPARSE_PATH_REFUSED'
+      }
+    }
+    $parent = [IO.Directory]::GetParent($cursor)
+    if ($null -eq $parent) { break }
+    $cursor = $parent.FullName
+  }
+}
+
 function Verify-Bundle([string]$Root) {
   $absolute = [IO.Path]::GetFullPath($Root).TrimEnd([IO.Path]::DirectorySeparatorChar)
+  Assert-NoReparseAncestors $absolute
   $manifest = Join-Path $absolute 'SHA256SUMS.txt'
+  Assert-NoReparseAncestors $manifest
   if (!(Test-Path -LiteralPath $manifest -PathType Leaf)) { throw 'STAGE_MANIFEST_MISSING' }
   $lines = @(Get-Content -LiteralPath $manifest)
   if ($lines.Count -lt 4) { throw 'STAGE_MANIFEST_TOO_SHORT' }
@@ -29,11 +48,20 @@ function Verify-Bundle([string]$Root) {
     if ($line -cnotmatch '^([a-f0-9]{64})  (.+)$') { throw 'STAGE_MANIFEST_INVALID' }
     $expected = $Matches[1]
     $rel = $Matches[2]
+    if ($rel -match '[\x00-\x1f:]' -or
+        $rel.StartsWith('/') -or
+        $rel.Split('/') -contains '..' -or
+        $rel.Split('/') -contains '.' -or
+        $rel -match '\\' -or
+        [IO.Path]::IsPathRooted($rel)) {
+      throw 'STAGE_MANIFEST_PATH_ESCAPE'
+    }
     $candidate = [IO.Path]::GetFullPath((Join-Path $absolute ($rel.Replace('/', '\'))))
     if (-not $candidate.StartsWith($absolute + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
       throw 'STAGE_MANIFEST_PATH_ESCAPE'
     }
     if (-not $seen.Add($candidate)) { throw 'STAGE_MANIFEST_DUPLICATE' }
+    Assert-NoReparseAncestors $candidate
     if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'STAGE_BUNDLE_FILE_MISSING' }
     if ((Get-Item -LiteralPath $candidate).Attributes -band [IO.FileAttributes]::ReparsePoint) {
       throw 'STAGE_BUNDLE_SYMLINK_FORBIDDEN'
@@ -41,8 +69,18 @@ function Verify-Bundle([string]$Root) {
     $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $candidate).Hash.ToLowerInvariant()
     if ($actual -cne $expected) { throw 'STAGE_SHA256_MISMATCH' }
   }
-  $actualEntries = @(Get-ChildItem -LiteralPath $absolute -Recurse -File |
-    Where-Object { $_.FullName -ne $manifest })
+  # -Force is required: hiding a file must not avoid a manifest check.
+  # Enumerate folders too, so unlisted reparse-point directories cannot
+  # silently redirect recursion into the installed app or other user state.
+  $actualEntries = @()
+  foreach ($entry in Get-ChildItem -LiteralPath $absolute -Recurse -Force) {
+    if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+      throw 'STAGE_BUNDLE_SYMLINK_FORBIDDEN'
+    }
+    if ($entry.PSIsContainer) { continue }
+    if ($entry.FullName -eq $manifest) { continue }
+    $actualEntries += $entry
+  }
   if ($seen.Count -ne $actualEntries.Count) { throw 'STAGE_UNLISTED_FILE' }
   foreach ($entry in $actualEntries) {
     if (-not $seen.Contains($entry.FullName)) { throw 'STAGE_UNLISTED_FILE' }
@@ -55,6 +93,8 @@ function Verify-Bundle([string]$Root) {
 if (!(Test-Path -LiteralPath $BundleRoot -PathType Container)) { throw 'STAGE_SOURCE_MISSING' }
 $bundle = (Resolve-Path -LiteralPath $BundleRoot).ProviderPath
 $destination = [IO.Path]::GetFullPath($DestinationRoot)
+Assert-NoReparseAncestors $bundle
+Assert-NoReparseAncestors $destination
 if (Test-Path -LiteralPath $destination) { throw 'STAGE_DEST_ALREADY_EXISTS' }
 Assert-Disjoint $destination $bundle 'STAGE_SOURCE_DEST_OVERLAP'
 $defaultConnector = Join-Path $HOME '.local\share\chatgpt2codex'
