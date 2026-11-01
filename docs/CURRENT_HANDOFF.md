@@ -1,5 +1,40 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — STRONG DIRECT LIVE OWNER MATCH: TASK SCHEDULER ENGINE PID
+
+The original production 7979 process's `wscript.exe` ancestor was
+compared **directly and read-only** against Windows Task Scheduler COM
+`IRunningTask.EnginePID`. Two independent sanitized owner-host
+queries established exactly **one** running
+`ChatGPT To Codex MCP - Tailscale` task instance with
+`EnginePID == live WScript ancestor PID`. Three other named
+OSINT/watchdog/self-healing task queries had zero current running
+instances and did not match. This **confirms the currently running
+task-engine ↔ WScript process association**, previously unproven.
+No raw PID, path, arguments, OAuth secrets or settings were emitted
+or altered.
+
+Relevant real task policy: Tailscale task has logon trigger,
+`RestartCount=5`, `RestartInterval=PT1M`,
+`ExecutionTimeLimit=PT0S`, `MultipleInstances=IgnoreNew`.
+Separately recurring Emergent Watchdog and MCP SelfHealing tasks remain
+Ready, with logon/time triggers and PT2M/PT5M limits, respectively.
+Original process creation 2026-10-17 and scheduler LastRunTime
+2026-10-29 remain different; do not conflate historical events.
+
+Owner proof source [OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md](./OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md),
+commit `86a43b1563c11c3ec20c3d00f5547b6ce91f5612`.
+**Remaining real gap:** which additional watchdog/Startup actions can
+recreate the old 7979 writer after the proven Tailscale task is stopped;
+there are 7 total same-script scheduler task actions in the complete
+scan, of which 6 use distinct argument modes. Require role-specific,
+privacy-preserving source examination and separate live cutover
+authorization. Do not disable unrelated OSINT tasks merely because
+they share a script, and never run two live writers on shared OAuth
+state. GOAL real cycles 0, real unattended Project rollovers 0/2.
+
+---
+
 ## 2026-11-02 KST — INVOCATION ROLE FINGERPRINT / OWNER SAFE HANDOFF
 
 A further **on-PC sanitized read-only** comparison across all seven
