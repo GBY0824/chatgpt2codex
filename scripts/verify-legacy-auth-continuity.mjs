@@ -1,6 +1,7 @@
 // SOURCE-ONLY OAuth/owner-token continuity check across built legacy and candidate.
 // Never reads real owner state: all token values and storage are synthetic.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -48,6 +49,29 @@ try {
     refreshTokenHash:syntheticTokenValues.refresh,
     refreshToken:{clientId:fakeClient.client_id,scopes:['chatgpt2codex'],expiresAt:now+86400,resource:issuer}
   }));
+  // The read-only inspection tool must never print secrets or mutate state.
+  const inspector=path.join(roots[1],'scripts','inspect-oauth-state-readonly.mjs');
+  function inspect(issuerPin) {
+    const r=spawnSync(process.execPath,[inspector,folder,issuerPin],{
+      encoding:'utf8',timeout:10_000,windowsHide:true
+    });
+    assert(!r.error,'AUTH_READONLY_INSPECTOR_PROCESS_FAILED');
+    assert(!r.stdout.includes(fakeClient.client_id),'AUTH_INSPECTOR_CLIENT_ID_LEAK');
+    assert(!r.stdout.includes(syntheticTokenValues.access),'AUTH_INSPECTOR_TOKEN_HASH_LEAK');
+    assert(!r.stdout.includes(testOwnerSecret),'AUTH_INSPECTOR_OWNER_TOKEN_LEAK');
+    return {status:r.status, data:JSON.parse(r.stdout)};
+  }
+  const inspection=inspect(issuer);
+  assert.equal(inspection.status,0);
+  assert.equal(inspection.data.code,'AUTH_STATE_READONLY_STRUCTURAL_GATE_PASS');
+  assert.equal(inspection.data.hasUnexpiredBasicAccessToken,true);
+  assert.equal(inspection.data.existingGoalScopeAccidentallyAdded,false);
+  assert.equal(inspection.data.productionCutoverAuthorized,false);
+  assert.equal(inspection.data.dataModified,false);
+  const wrongResource=inspect('http://127.0.0.1:7999/mcp');
+  assert.notEqual(wrongResource.status,0);
+  assert.equal(wrongResource.data.code,'AUTH_STATE_READONLY_MIGRATION_GATE_BLOCKED');
+  assert.equal(wrongResource.data.allPersistedResourcesMatchPin,false);
   const before=hash(await readFile(path.join(folder,'oauth.json')));
   const ownerBefore=hash(await readFile(path.join(folder,'owner-token.json')));
   // Fresh candidate process-level store objects see the original stored records.
@@ -91,6 +115,14 @@ try {
   // Neither app may silently widen existing legacy-token scopes.
   const oldByNew=await candidate.getAccessToken(syntheticTokenValues.access);
   assert.deepEqual(oldByNew?.scopes,['chatgpt2codex']);
+  // After a corruption, refuse readiness rather than showing/rewriting data.
+  // This is a synthetic throwaway file; the production store is not inspected.
+  const {writeFile}=await import('node:fs/promises');
+  await writeFile(path.join(folder,'oauth.json'),'{\"broken\":true}');
+  const corrupt=inspect(issuer);
+  assert.notEqual(corrupt.status,0);
+  assert.equal(corrupt.data.code,'AUTH_STATE_READONLY_INVALID_RECORDS');
+  assert.equal(corrupt.data.dataModified,false);
   console.log(JSON.stringify({
     code:'LEGACY_AUTH_STATE_CROSS_VERSION_COMPAT_PASS',
     oldClientReadableByCandidate:true,
