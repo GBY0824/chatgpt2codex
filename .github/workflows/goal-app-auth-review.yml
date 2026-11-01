@@ -22,6 +22,7 @@ on:
       - "scripts/verify-integrated-synthetic-mcp-upgrade.mjs"
       - "scripts/Inspect-OneMcpCutoverReadiness.ps1"
       - "scripts/Inspect-OneMcpStartupReadOnly.ps1"
+      - "scripts/New-OneMcpVerifiedProgramSnapshot.ps1"
       - "docs/GOAL_APP_AUTH_REVIEW.md"
       - "docs/MCP_SINGLE_RUNTIME_MIGRATION.md"
       - ".github/workflows/goal-app-auth-review.yml"
@@ -147,6 +148,78 @@ jobs:
             $wildcard.Stop()
           }
           Write-Host "ONE_MCP_STARTUP_READONLY_INVENTORY_CI_PASS"
+      - name: Synthetic Windows program snapshot and fresh-folder restore SHA gates
+        shell: pwsh
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP "synthetic-backup-owner-fixture"
+          $old = Join-Path $fixture "old-program"
+          $snapshot = Join-Path $fixture "backup-new"
+          $restored = Join-Path $fixture "restore-new"
+          $separateState = Join-Path $fixture "separate-auth-state"
+          New-Item -ItemType Directory -Path (Join-Path $old "dist") -Force | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $old "assets") -Force | Out-Null
+          New-Item -ItemType Directory -Path $separateState -Force | Out-Null
+          [IO.File]::WriteAllText((Join-Path $old "dist/cli.js"),"synthetic original cli")
+          [IO.File]::WriteAllText((Join-Path $old "package.json"),'{"version":"0.2.0"}')
+          [IO.File]::WriteAllText((Join-Path $old "assets/hidden.cfg"),"synthetic hidden asset")
+          [IO.File]::SetAttributes((Join-Path $old "assets/hidden.cfg"),[IO.FileAttributes]::Hidden)
+          [IO.File]::WriteAllText((Join-Path $separateState "not-a-token.txt"),"independent user state")
+          $statePin = (Get-FileHash (Join-Path $separateState "not-a-token.txt") -Algorithm SHA256).Hash.ToLowerInvariant()
+          $cliPin = (Get-FileHash (Join-Path $old "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant()
+          try {
+            & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Capture -ExistingProgramDir $old -SnapshotDir $snapshot -ExpectedCliSha $cliPin | Out-Null
+            throw "Snapshot captured without explicit approval flag"
+          } catch {
+            if ($_.Exception.Message -notmatch "SNAPSHOT_EXPLICIT_BACKUP_ONLY_APPROVAL_REQUIRED") { throw }
+          }
+          if (Test-Path $snapshot) { throw "Unapproved snapshot unexpectedly wrote files" }
+          try {
+            & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Capture -ExistingProgramDir $old -SnapshotDir $snapshot -ExpectedCliSha ("0" * 64) -ApproveBackupOnly | Out-Null
+            throw "Snapshot accepted a wrong externally pinned CLI hash"
+          } catch {
+            if ($_.Exception.Message -notmatch "SNAPSHOT_ORIGINAL_CLI_SHA_MISMATCH") { throw }
+          }
+          if (Test-Path $snapshot) { throw "Wrong source SHA caused filesystem write" }
+          $captured = & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Capture -ExistingProgramDir $old -SnapshotDir $snapshot -ExpectedCliSha $cliPin -ApproveBackupOnly | ConvertFrom-Json
+          if ($captured.code -ne "ONE_MCP_PROGRAM_SNAPSHOT_VERIFIED" -or
+              $captured.fileCount -ne 3 -or $captured.productionCutoverAuthorized -or
+              $captured.separateOAuthStateCopied -or $captured.restoredOrInstalled) {
+            throw "Snapshot did not preserve source-only backup boundary"
+          }
+          if ((Get-FileHash (Join-Path $separateState "not-a-token.txt") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $statePin) {
+            throw "Independent state changed during backup"
+          }
+          try {
+            & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $restored -ExpectedCliSha $cliPin -ExpectedReceiptSha ("0" * 64) -ApproveBackupOnly | Out-Null
+            throw "Snapshot restore accepted mismatched receipt hash"
+          } catch {
+            if ($_.Exception.Message -notmatch "SNAPSHOT_EXTERNALLY_PINNED_RECEIPT_SHA_MISMATCH") { throw }
+          }
+          if (Test-Path $restored) { throw "Wrong receipt SHA unexpectedly wrote files" }
+          $restore = & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $restored -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | ConvertFrom-Json
+          if ($restore.code -ne "ONE_MCP_PROGRAM_RESTORED_TO_NEW_FOLDER_ONLY" -or
+              $restore.fileCount -ne 3 -or $restore.productionCutoverAuthorized -or
+              $restore.separateOAuthStateCopied -or
+              (Get-FileHash (Join-Path $restored "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $cliPin) {
+            throw "New-folder restore result invalid"
+          }
+          try {
+            & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $restored -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | Out-Null
+            throw "Restoration overwrote a previously created target"
+          } catch {
+            if ($_.Exception.Message -notmatch "SNAPSHOT_DESTINATION_ALREADY_EXISTS") { throw }
+          }
+          [IO.File]::WriteAllText((Join-Path $snapshot "program/assets/hidden.cfg"),"tampered backup")
+          $rejectedTarget = Join-Path $fixture "restore-must-fail"
+          try {
+            & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $rejectedTarget -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | Out-Null
+            throw "Mutated backup was accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "SNAPSHOT_FILE_HASH_MISMATCH") { throw }
+          }
+          if (Test-Path $rejectedTarget) { throw "Mutated backup caused restore file writes" }
+          if ((Get-FileHash (Join-Path $separateState "not-a-token.txt") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $statePin) { throw "Synthetic state changed" }
+          Write-Host "ONE_MCP_VERIFIED_SNAPSHOT_RESTORE_TESTS_PASS"
       - name: Windows TypeScript typecheck
         run: npm run typecheck
       - name: Windows source build only
