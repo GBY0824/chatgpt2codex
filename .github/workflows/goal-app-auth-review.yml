@@ -180,6 +180,538 @@ jobs:
           chatgpt2codex.goal records APP INTENT ONLY; no P3 authorization,
           research dispatch or consumer ChatGPT rollover is granted.
           '@ | Set-Content -Path staging-release\STAGING_README.txt -Encoding UTF8
+          # The package.json version is shared with the legacy 0.2.0 install.
+          # Pin exact fork SOURCE head separately from the Actions merge checkout.
+          $sourceHead = "${{ github.event.pull_request.head.sha }}"
+          $mergeCheckout = "${{ github.sha }}"
+          if ($sourceHead -notmatch '^[0-9a-f]{40}          $entries = Get-ChildItem staging-release -Recurse -File | Sort-Object FullName
+          $lines = foreach ($file in $entries) {
+            $relative = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
+            $sha = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            "$sha  $relative"
+          }
+          $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
+          if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
+      - name: Verify offline stage preparation and tamper rejection
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "goal-app-offline-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot "staging-release" -DestinationRoot $destination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or
+              $state.serviceStarted -ne $false) {
+            throw "Offline bundle stage verification did not stay inactive"
+          }
+          if (!(Test-Path (Join-Path $destination "dist/cli.js"))) { throw "Stage executable missing" }
+          $prov = Get-Content (Join-Path $destination "STAGING_PROVENANCE.txt") -Raw
+          if ($prov -notmatch '(?m)^reviewOnly=true\r?          $tampered = Join-Path $env:RUNNER_TEMP "goal-app-bundle-tampered"
+          Copy-Item -Path staging-release -Destination $tampered -Recurse
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tamper-negative-test"
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-tampered-stage")
+            throw "Tampered bundle was incorrectly accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
+          }
+      - name: Upload isolated Windows bundle (not installed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-release/
+          retention-days: 7
+          # SHA256SUMS lists dot-files/dirs (e.g. node_modules/.bin).
+          # upload-artifact@v4.4+ drops these by default, causing an
+          # unrecoverable missing-file error after the owner extracts the ZIP.
+          # Only staged source assets are in this upload; no credentials.
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Download the published archive for round-trip validation
+        uses: actions/download-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-artifact-download
+      - name: Verify downloaded artifact hashes and offline stage replay
+        shell: pwsh
+        run: |
+          $downloaded = (Resolve-Path staging-artifact-download).Path
+          $manifest = Join-Path $downloaded "SHA256SUMS.txt"
+          if (!(Test-Path $manifest)) { throw "Downloaded SHA256 manifest missing" }
+          $expectedCount = @(Get-Content $manifest).Count
+          $artifactCount = @(Get-ChildItem -LiteralPath $downloaded -Recurse -File -Force).Count
+          if ($artifactCount -ne ($expectedCount + 1)) {
+            throw "Artifact roundtrip file count mismatch: manifest=$expectedCount archive=$artifactCount"
+          }
+          $roundtripDestination = Join-Path $env:RUNNER_TEMP "goal-app-downloaded-artifact-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $downloaded -DestinationRoot $roundtripDestination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or $state.serviceStarted -ne $false) {
+            throw "Downloaded archive failed its own SHA256 offline stage replay"
+          }
+          Write-Host "DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=$expectedCount"
+ -or
+              $mergeCheckout -notmatch '^[0-9a-f]{40}          $entries = Get-ChildItem staging-release -Recurse -File | Sort-Object FullName
+          $lines = foreach ($file in $entries) {
+            $relative = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
+            $sha = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            "$sha  $relative"
+          }
+          $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
+          if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
+      - name: Verify offline stage preparation and tamper rejection
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "goal-app-offline-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot "staging-release" -DestinationRoot $destination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or
+              $state.serviceStarted -ne $false) {
+            throw "Offline bundle stage verification did not stay inactive"
+          }
+          if (!(Test-Path (Join-Path $destination "dist/cli.js"))) { throw "Stage executable missing" }
+          $tampered = Join-Path $env:RUNNER_TEMP "goal-app-bundle-tampered"
+          Copy-Item -Path staging-release -Destination $tampered -Recurse
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tamper-negative-test"
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-tampered-stage")
+            throw "Tampered bundle was incorrectly accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
+          }
+      - name: Upload isolated Windows bundle (not installed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-release/
+          retention-days: 7
+          # SHA256SUMS lists dot-files/dirs (e.g. node_modules/.bin).
+          # upload-artifact@v4.4+ drops these by default, causing an
+          # unrecoverable missing-file error after the owner extracts the ZIP.
+          # Only staged source assets are in this upload; no credentials.
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Download the published archive for round-trip validation
+        uses: actions/download-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-artifact-download
+      - name: Verify downloaded artifact hashes and offline stage replay
+        shell: pwsh
+        run: |
+          $downloaded = (Resolve-Path staging-artifact-download).Path
+          $manifest = Join-Path $downloaded "SHA256SUMS.txt"
+          if (!(Test-Path $manifest)) { throw "Downloaded SHA256 manifest missing" }
+          $expectedCount = @(Get-Content $manifest).Count
+          $artifactCount = @(Get-ChildItem -LiteralPath $downloaded -Recurse -File -Force).Count
+          if ($artifactCount -ne ($expectedCount + 1)) {
+            throw "Artifact roundtrip file count mismatch: manifest=$expectedCount archive=$artifactCount"
+          }
+          $roundtripDestination = Join-Path $env:RUNNER_TEMP "goal-app-downloaded-artifact-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $downloaded -DestinationRoot $roundtripDestination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or $state.serviceStarted -ne $false) {
+            throw "Downloaded archive failed its own SHA256 offline stage replay"
+          }
+          Write-Host "DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=$expectedCount"
+) {
+            throw "Missing unambiguous review source provenance"
+          }
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          @(
+            "reviewOnly=true"
+            "sourcePrHeadSha=$sourceHead"
+            "ciCheckoutSha=$mergeCheckout"
+            "legacySharedPackageVersion=$packageVersion"
+            "nodeVersion=$(node --version)"
+            "productionDeploymentApproved=false"
+          ) | Set-Content -Path staging-release\STAGING_PROVENANCE.txt -Encoding ascii
+          $root = (Resolve-Path staging-release).Path
+          $entries = Get-ChildItem staging-release -Recurse -File | Sort-Object FullName
+          $lines = foreach ($file in $entries) {
+            $relative = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
+            $sha = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            "$sha  $relative"
+          }
+          $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
+          if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
+      - name: Verify offline stage preparation and tamper rejection
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "goal-app-offline-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot "staging-release" -DestinationRoot $destination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or
+              $state.serviceStarted -ne $false) {
+            throw "Offline bundle stage verification did not stay inactive"
+          }
+          if (!(Test-Path (Join-Path $destination "dist/cli.js"))) { throw "Stage executable missing" }
+          $tampered = Join-Path $env:RUNNER_TEMP "goal-app-bundle-tampered"
+          Copy-Item -Path staging-release -Destination $tampered -Recurse
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tamper-negative-test"
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-tampered-stage")
+            throw "Tampered bundle was incorrectly accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
+          }
+      - name: Upload isolated Windows bundle (not installed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-release/
+          retention-days: 7
+          # SHA256SUMS lists dot-files/dirs (e.g. node_modules/.bin).
+          # upload-artifact@v4.4+ drops these by default, causing an
+          # unrecoverable missing-file error after the owner extracts the ZIP.
+          # Only staged source assets are in this upload; no credentials.
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Download the published archive for round-trip validation
+        uses: actions/download-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-artifact-download
+      - name: Verify downloaded artifact hashes and offline stage replay
+        shell: pwsh
+        run: |
+          $downloaded = (Resolve-Path staging-artifact-download).Path
+          $manifest = Join-Path $downloaded "SHA256SUMS.txt"
+          if (!(Test-Path $manifest)) { throw "Downloaded SHA256 manifest missing" }
+          $expectedCount = @(Get-Content $manifest).Count
+          $artifactCount = @(Get-ChildItem -LiteralPath $downloaded -Recurse -File -Force).Count
+          if ($artifactCount -ne ($expectedCount + 1)) {
+            throw "Artifact roundtrip file count mismatch: manifest=$expectedCount archive=$artifactCount"
+          }
+          $roundtripDestination = Join-Path $env:RUNNER_TEMP "goal-app-downloaded-artifact-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $downloaded -DestinationRoot $roundtripDestination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or $state.serviceStarted -ne $false) {
+            throw "Downloaded archive failed its own SHA256 offline stage replay"
+          }
+          Write-Host "DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=$expectedCount"
+ -or
+              $prov -notmatch "(?m)^sourcePrHeadSha=${{ github.event.pull_request.head.sha }}\r?$" -or
+              $prov -notmatch "(?m)^ciCheckoutSha=${{ github.sha }}\r?$" -or
+              $prov -notmatch '(?m)^productionDeploymentApproved=false\r?          $tampered = Join-Path $env:RUNNER_TEMP "goal-app-bundle-tampered"
+          Copy-Item -Path staging-release -Destination $tampered -Recurse
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tamper-negative-test"
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-tampered-stage")
+            throw "Tampered bundle was incorrectly accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
+          }
+      - name: Upload isolated Windows bundle (not installed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-release/
+          retention-days: 7
+          # SHA256SUMS lists dot-files/dirs (e.g. node_modules/.bin).
+          # upload-artifact@v4.4+ drops these by default, causing an
+          # unrecoverable missing-file error after the owner extracts the ZIP.
+          # Only staged source assets are in this upload; no credentials.
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Download the published archive for round-trip validation
+        uses: actions/download-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-artifact-download
+      - name: Verify downloaded artifact hashes and offline stage replay
+        shell: pwsh
+        run: |
+          $downloaded = (Resolve-Path staging-artifact-download).Path
+          $manifest = Join-Path $downloaded "SHA256SUMS.txt"
+          if (!(Test-Path $manifest)) { throw "Downloaded SHA256 manifest missing" }
+          $expectedCount = @(Get-Content $manifest).Count
+          $artifactCount = @(Get-ChildItem -LiteralPath $downloaded -Recurse -File -Force).Count
+          if ($artifactCount -ne ($expectedCount + 1)) {
+            throw "Artifact roundtrip file count mismatch: manifest=$expectedCount archive=$artifactCount"
+          }
+          $roundtripDestination = Join-Path $env:RUNNER_TEMP "goal-app-downloaded-artifact-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $downloaded -DestinationRoot $roundtripDestination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or $state.serviceStarted -ne $false) {
+            throw "Downloaded archive failed its own SHA256 offline stage replay"
+          }
+          Write-Host "DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=$expectedCount"
+ -or
+              $mergeCheckout -notmatch '^[0-9a-f]{40}          $entries = Get-ChildItem staging-release -Recurse -File | Sort-Object FullName
+          $lines = foreach ($file in $entries) {
+            $relative = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
+            $sha = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            "$sha  $relative"
+          }
+          $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
+          if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
+      - name: Verify offline stage preparation and tamper rejection
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "goal-app-offline-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot "staging-release" -DestinationRoot $destination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or
+              $state.serviceStarted -ne $false) {
+            throw "Offline bundle stage verification did not stay inactive"
+          }
+          if (!(Test-Path (Join-Path $destination "dist/cli.js"))) { throw "Stage executable missing" }
+          $tampered = Join-Path $env:RUNNER_TEMP "goal-app-bundle-tampered"
+          Copy-Item -Path staging-release -Destination $tampered -Recurse
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tamper-negative-test"
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-tampered-stage")
+            throw "Tampered bundle was incorrectly accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
+          }
+      - name: Upload isolated Windows bundle (not installed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-release/
+          retention-days: 7
+          # SHA256SUMS lists dot-files/dirs (e.g. node_modules/.bin).
+          # upload-artifact@v4.4+ drops these by default, causing an
+          # unrecoverable missing-file error after the owner extracts the ZIP.
+          # Only staged source assets are in this upload; no credentials.
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Download the published archive for round-trip validation
+        uses: actions/download-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-artifact-download
+      - name: Verify downloaded artifact hashes and offline stage replay
+        shell: pwsh
+        run: |
+          $downloaded = (Resolve-Path staging-artifact-download).Path
+          $manifest = Join-Path $downloaded "SHA256SUMS.txt"
+          if (!(Test-Path $manifest)) { throw "Downloaded SHA256 manifest missing" }
+          $expectedCount = @(Get-Content $manifest).Count
+          $artifactCount = @(Get-ChildItem -LiteralPath $downloaded -Recurse -File -Force).Count
+          if ($artifactCount -ne ($expectedCount + 1)) {
+            throw "Artifact roundtrip file count mismatch: manifest=$expectedCount archive=$artifactCount"
+          }
+          $roundtripDestination = Join-Path $env:RUNNER_TEMP "goal-app-downloaded-artifact-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $downloaded -DestinationRoot $roundtripDestination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or $state.serviceStarted -ne $false) {
+            throw "Downloaded archive failed its own SHA256 offline stage replay"
+          }
+          Write-Host "DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=$expectedCount"
+) {
+            throw "Missing unambiguous review source provenance"
+          }
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          @(
+            "reviewOnly=true"
+            "sourcePrHeadSha=$sourceHead"
+            "ciCheckoutSha=$mergeCheckout"
+            "legacySharedPackageVersion=$packageVersion"
+            "nodeVersion=$(node --version)"
+            "productionDeploymentApproved=false"
+          ) | Set-Content -Path staging-release\STAGING_PROVENANCE.txt -Encoding ascii
+          $root = (Resolve-Path staging-release).Path
+          $entries = Get-ChildItem staging-release -Recurse -File | Sort-Object FullName
+          $lines = foreach ($file in $entries) {
+            $relative = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
+            $sha = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            "$sha  $relative"
+          }
+          $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
+          if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
+      - name: Verify offline stage preparation and tamper rejection
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "goal-app-offline-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot "staging-release" -DestinationRoot $destination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or
+              $state.serviceStarted -ne $false) {
+            throw "Offline bundle stage verification did not stay inactive"
+          }
+          if (!(Test-Path (Join-Path $destination "dist/cli.js"))) { throw "Stage executable missing" }
+          $tampered = Join-Path $env:RUNNER_TEMP "goal-app-bundle-tampered"
+          Copy-Item -Path staging-release -Destination $tampered -Recurse
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tamper-negative-test"
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-tampered-stage")
+            throw "Tampered bundle was incorrectly accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
+          }
+      - name: Upload isolated Windows bundle (not installed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-release/
+          retention-days: 7
+          # SHA256SUMS lists dot-files/dirs (e.g. node_modules/.bin).
+          # upload-artifact@v4.4+ drops these by default, causing an
+          # unrecoverable missing-file error after the owner extracts the ZIP.
+          # Only staged source assets are in this upload; no credentials.
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Download the published archive for round-trip validation
+        uses: actions/download-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-artifact-download
+      - name: Verify downloaded artifact hashes and offline stage replay
+        shell: pwsh
+        run: |
+          $downloaded = (Resolve-Path staging-artifact-download).Path
+          $manifest = Join-Path $downloaded "SHA256SUMS.txt"
+          if (!(Test-Path $manifest)) { throw "Downloaded SHA256 manifest missing" }
+          $expectedCount = @(Get-Content $manifest).Count
+          $artifactCount = @(Get-ChildItem -LiteralPath $downloaded -Recurse -File -Force).Count
+          if ($artifactCount -ne ($expectedCount + 1)) {
+            throw "Artifact roundtrip file count mismatch: manifest=$expectedCount archive=$artifactCount"
+          }
+          $roundtripDestination = Join-Path $env:RUNNER_TEMP "goal-app-downloaded-artifact-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $downloaded -DestinationRoot $roundtripDestination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or $state.serviceStarted -ne $false) {
+            throw "Downloaded archive failed its own SHA256 offline stage replay"
+          }
+          Write-Host "DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=$expectedCount"
+) {
+            throw "Staging provenance receipt missing or inconsistent"
+          }
+          $tampered = Join-Path $env:RUNNER_TEMP "goal-app-bundle-tampered"
+          Copy-Item -Path staging-release -Destination $tampered -Recurse
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tamper-negative-test"
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-tampered-stage")
+            throw "Tampered bundle was incorrectly accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
+          }
+      - name: Upload isolated Windows bundle (not installed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-release/
+          retention-days: 7
+          # SHA256SUMS lists dot-files/dirs (e.g. node_modules/.bin).
+          # upload-artifact@v4.4+ drops these by default, causing an
+          # unrecoverable missing-file error after the owner extracts the ZIP.
+          # Only staged source assets are in this upload; no credentials.
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Download the published archive for round-trip validation
+        uses: actions/download-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-artifact-download
+      - name: Verify downloaded artifact hashes and offline stage replay
+        shell: pwsh
+        run: |
+          $downloaded = (Resolve-Path staging-artifact-download).Path
+          $manifest = Join-Path $downloaded "SHA256SUMS.txt"
+          if (!(Test-Path $manifest)) { throw "Downloaded SHA256 manifest missing" }
+          $expectedCount = @(Get-Content $manifest).Count
+          $artifactCount = @(Get-ChildItem -LiteralPath $downloaded -Recurse -File -Force).Count
+          if ($artifactCount -ne ($expectedCount + 1)) {
+            throw "Artifact roundtrip file count mismatch: manifest=$expectedCount archive=$artifactCount"
+          }
+          $roundtripDestination = Join-Path $env:RUNNER_TEMP "goal-app-downloaded-artifact-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $downloaded -DestinationRoot $roundtripDestination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or $state.serviceStarted -ne $false) {
+            throw "Downloaded archive failed its own SHA256 offline stage replay"
+          }
+          Write-Host "DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=$expectedCount"
+ -or
+              $mergeCheckout -notmatch '^[0-9a-f]{40}          $entries = Get-ChildItem staging-release -Recurse -File | Sort-Object FullName
+          $lines = foreach ($file in $entries) {
+            $relative = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
+            $sha = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            "$sha  $relative"
+          }
+          $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
+          if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
+      - name: Verify offline stage preparation and tamper rejection
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "goal-app-offline-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot "staging-release" -DestinationRoot $destination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or
+              $state.serviceStarted -ne $false) {
+            throw "Offline bundle stage verification did not stay inactive"
+          }
+          if (!(Test-Path (Join-Path $destination "dist/cli.js"))) { throw "Stage executable missing" }
+          $tampered = Join-Path $env:RUNNER_TEMP "goal-app-bundle-tampered"
+          Copy-Item -Path staging-release -Destination $tampered -Recurse
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tamper-negative-test"
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-tampered-stage")
+            throw "Tampered bundle was incorrectly accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
+          }
+      - name: Upload isolated Windows bundle (not installed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-release/
+          retention-days: 7
+          # SHA256SUMS lists dot-files/dirs (e.g. node_modules/.bin).
+          # upload-artifact@v4.4+ drops these by default, causing an
+          # unrecoverable missing-file error after the owner extracts the ZIP.
+          # Only staged source assets are in this upload; no credentials.
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Download the published archive for round-trip validation
+        uses: actions/download-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-artifact-download
+      - name: Verify downloaded artifact hashes and offline stage replay
+        shell: pwsh
+        run: |
+          $downloaded = (Resolve-Path staging-artifact-download).Path
+          $manifest = Join-Path $downloaded "SHA256SUMS.txt"
+          if (!(Test-Path $manifest)) { throw "Downloaded SHA256 manifest missing" }
+          $expectedCount = @(Get-Content $manifest).Count
+          $artifactCount = @(Get-ChildItem -LiteralPath $downloaded -Recurse -File -Force).Count
+          if ($artifactCount -ne ($expectedCount + 1)) {
+            throw "Artifact roundtrip file count mismatch: manifest=$expectedCount archive=$artifactCount"
+          }
+          $roundtripDestination = Join-Path $env:RUNNER_TEMP "goal-app-downloaded-artifact-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $downloaded -DestinationRoot $roundtripDestination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or $state.serviceStarted -ne $false) {
+            throw "Downloaded archive failed its own SHA256 offline stage replay"
+          }
+          Write-Host "DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=$expectedCount"
+) {
+            throw "Missing unambiguous review source provenance"
+          }
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          @(
+            "reviewOnly=true"
+            "sourcePrHeadSha=$sourceHead"
+            "ciCheckoutSha=$mergeCheckout"
+            "legacySharedPackageVersion=$packageVersion"
+            "nodeVersion=$(node --version)"
+            "productionDeploymentApproved=false"
+          ) | Set-Content -Path staging-release\STAGING_PROVENANCE.txt -Encoding ascii
           $root = (Resolve-Path staging-release).Path
           $entries = Get-ChildItem staging-release -Recurse -File | Sort-Object FullName
           $lines = foreach ($file in $entries) {
