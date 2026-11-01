@@ -1,5 +1,55 @@
 # GOAL app-command OAuth review (not deployed)
 
+## 2026-11-02 KST — GOAL intent ledger lock ownership repair (source only)
+
+The previous source-only `goalAppCommand` wrote app-level intent
+under a `wx` exclusive `goal-app-command-intent.json.lock` marker,
+but its `finally` unconditionally closed and unlinked the marker.
+This could remove **another process's replacement lock** if a
+local operator or process replaced/modified the path during the
+current transaction. It did not authorize research, but could
+undermine safe concurrency and orderly owner recovery.
+
+**Candidate repair** at
+[code dcd919facb08c4817bd578324fc1f4daa0815fed](https://github.com/GBY0824/chatgpt2codex/commit/dcd919facb08c4817bd578324fc1f4daa0815fed):
+`withGoalIntentClaim` writes a random nonce into the owned marker,
+pins its `dev`/`ino`, and before cleanup requires matching
+bytes, regular-file type and filesystem identity. If any condition
+fails, it **does not unlink the foreign or missing lock** and throws
+`APP_GOAL_LOCK_OWNERSHIP_LOST`. Existing owner recovery remains
+manual on a crashed or stale marker; no automatic PID/age reclamation.
+A final check and `unlink` is still a best-effort userspace
+operation, **not atomic unlink-by-handle**, just as the existing
+OAuth writer lock policy warns. Do not conflate GOAL intent locking
+with original v0.2.0's unprotected OAuth writer.
+
+[Tests 30ec36c6ab819587b4ef5d58d928276505034ebd](https://github.com/GBY0824/chatgpt2codex/commit/30ec36c6ab819587b4ef5d58d928276505034ebd)
+cover (a) normal claim cleanup, (b) same-inode content/nonce
+replacement, (c) different-inode replacement, (d) missing lock, and
+(e) refusal to start another claimant while a foreign lock remains.
+They operate only in random disposable test directories.
+
+**Actual CI diagnosis and repair:** source/Windows CI for intermediate
+SHA `dcd919fa` and tests SHA `30ec36c6` FAILED
+at Linux `npm run typecheck`, `TS2322`, because the narrower
+`ON|OFF` value widened to include `status` inside a new
+async closure. Fixed at
+[1bddc0b4cde3801342bdb989e329fc983fad4fa4](https://github.com/GBY0824/chatgpt2codex/commit/1bddc0b4cde3801342bdb989e329fc983fad4fa4).
+Independent Linux source tests, build, typecheck and macOS full
+regressions passed at
+[Actions 41361889807](https://github.com/GBY0824/chatgpt2codex/actions/runs/41361889807);
+native Windows was still IN PROGRESS at first checkpoint and must
+be checked for a final 3/3. No production file, authentication
+client, Chrome, Windows task, browser or Project CHAT changed.
+
+This is ONLY APP-level GOAL intent concurrency hardening.
+Authenticated original consumer ChatGPT user-turn/Project successor
+attestation and authorized P3 research execution are still absent.
+Actual GOAL cycles 0, genuine unattended normal CHAT rollovers 0/2.
+
+---
+
+
 This branch modifies the **source fork only**. It does not replace or restart the user's installed ChatGPT To Codex v0.2.0, Chrome Runtime V3, Tailscale Funnel, OAuth credentials, Windows services, or research Stage.
 
 ## Behavior
