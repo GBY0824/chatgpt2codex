@@ -209,6 +209,30 @@ jobs:
           } catch {
             if ($_.Exception.Message -notmatch "SNAPSHOT_DESTINATION_ALREADY_EXISTS") { throw }
           }
+          # Real rollback must work even when the installed executable was
+          # replaced by a bad candidate; backup SHA+receipt are the anchors.
+          [IO.File]::WriteAllText((Join-Path $old "dist/cli.js"),"synthetic failed candidate replaced original")
+          $changedCli = (Get-FileHash (Join-Path $old "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($changedCli -ceq $cliPin) { throw "Failure fixture did not change original CLI" }
+          $alteredRestore = Join-Path $fixture "recovery-from-replaced-cli"
+          $recovered = & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $alteredRestore -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | ConvertFrom-Json
+          if ($recovered.code -ne "ONE_MCP_PROGRAM_RESTORED_TO_NEW_FOLDER_ONLY" -or
+              (Get-FileHash (Join-Path $alteredRestore "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $cliPin -or
+              (Get-FileHash (Join-Path $old "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $changedCli) {
+            throw "Restore incorrectly depended on or altered replaced original executable"
+          }
+          # After the old folder disappears entirely, verified program recovery
+          # must still prepare a separate clean directory for the later handoff.
+          Rename-Item -LiteralPath $old -NewName "retired-original" -ErrorAction Stop
+          if (Test-Path -LiteralPath $old) { throw "Synthetic original unexpectedly still exists" }
+          $missingRestore = Join-Path $fixture "recovery-after-original-folder-disappeared"
+          $missingRecovered = & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $missingRestore -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | ConvertFrom-Json
+          if ($missingRecovered.code -ne "ONE_MCP_PROGRAM_RESTORED_TO_NEW_FOLDER_ONLY" -or
+              (Get-FileHash (Join-Path $missingRestore "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $cliPin -or
+              (Test-Path -LiteralPath $old)) {
+            throw "Missing-original recovery failed or wrote into original installation path"
+          }
+          Write-Host "ONE_MCP_MISSING_OR_REPLACED_ORIGINAL_ROLLBACK_PREPARATION_PASS"
           [IO.File]::WriteAllText((Join-Path $snapshot "program/package.json"),"tampered backup")
           $rejectedTarget = Join-Path $fixture "restore-must-fail"
           try {
