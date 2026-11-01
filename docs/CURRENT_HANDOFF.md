@@ -5,6 +5,103 @@
 > identify the goal, code, evidence, gates and exact next action. **Do not
 > treat the SHA/run values below as live until verified against GitHub.**
 
+## 2026-11-02 03:53 KST — CHAT LIMIT / NEXT CHAT MUST RESUME HERE
+
+**Reason for checkpoint:** the user reports this ChatGPT conversation is at its
+limit. This is a **GitHub-backed context handoff**, not a successful or automatic
+rollover. New chat should act on GitHub state immediately without making the
+user restate the research or previous results.
+
+**Canonical GitHub locations:**
+- Fork [GBY0824/chatgpt2codex](https://github.com/GBY0824/chatgpt2codex),
+  branch `goal-app-auth-review-20261101`, draft/unmerged
+  [PR #1](https://github.com/GBY0824/chatgpt2codex/pull/1).
+- Chronological research audit and detailed findings:
+  [GBY0824/freqtrade-mcp-research Issue #2](https://github.com/GBY0824/freqtrade-mcp-research/issues/2).
+- This file plus [OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md](./OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md)
+  and [MCP_SINGLE_RUNTIME_MIGRATION.md](./MCP_SINGLE_RUNTIME_MIGRATION.md).
+- Exact PR HEAD when the checkpoint began:
+  `055fe10e355d36f1bc0c5c85920097e1061bfa67`;
+  [Actions 41338894626](https://github.com/GBY0824/chatgpt2codex/actions/runs/41338894626)
+  had Linux/macOS **SUCCESS** and Windows **IN PROGRESS** at checkpoint.
+  These are observed states, **not** a claim of a completed run.
+  The present docs update will create a newer PR HEAD; fetch it and
+  its latest CI rather than assuming this reference is current.
+- Last conclusively checked code/test reference from the previous chat:
+  `d7aa9eb0d3ea16d925ed7d0d5ddea4d651ff2644`,
+  [Actions 41337482236](https://github.com/GBY0824/chatgpt2codex/actions/runs/41337482236),
+  completed SUCCESS **3/3** Linux/Windows/macOS, with 10 synthetic
+  Windows recovery cases and SHA-256 verification of 3,480 files.
+  Later successful CI may exist; confirm rather than claim stale proof.
+
+**Newly established direct, sanitized Windows evidence:**
+- Original installed production `127.0.0.1:7979` runs `node.exe`
+  under `powershell.exe` under `wscript.exe`, creation time
+  **2026-10-17 10:42 KST**. Separate isolated stage uses port `7987`.
+- Current-user Startup directory has `ChatGPTToCodexEmergent.cmd`.
+  Relevant Task Scheduler tasks include
+  `ChatGPTToCodexEmergent-Watchdog` and
+  `ChatGPTToCodexMcpSelfHealing`: both Ready WScript launcher candidates
+  with logon/time triggers and successful recent runs (2026-11-02
+  03:34 and 03:33, result 0). `ChatGPTToCodexOAuthGuard` is disabled.
+  Task Scheduler Operational logging is disabled, zero records.
+- **Stronger independently recorded read-only Codex evidence:** the
+  absolute normalized WScript script path of the live process's
+  WScript ancestor exactly matches the action script path for all
+  three named tasks. Only sanitized match booleans were returned, not
+  raw paths/arguments/credentials. This identifies a **shared script**,
+  **not** which task created the live PID, which task owns restart
+  control, or whether the script receives the same arguments.
+- Never disable/modify a guessed task or Startup item; multiple
+  possible WScript-based relaunch mechanisms remain.
+- No live Windows program/Task/credential/OAuth change or PR merge has
+  been authorized or performed. Original legacy v0.2.0 does NOT
+  honor candidate `oauth-write.lock`; old/new must never share a live
+  OAuth state directory concurrently.
+
+**Research goal (the project, not merely the MCP PR):**
+Preserve one upgraded existing MCP + optional, explicitly authorized
+GOAL scope while building event-driven autonomous research continuity
+for ordinary ChatGPT Project chats from Android/other PCs, home Windows
+receiver, limit detection, automatic same-Project successor chat creation,
+context reconstruction and verified work resumption. Acceptance:
+**two genuinely unattended, independently evidenced ChatGPT rollovers,
+currently 0/2**. GOAL actual research executions remain **0**.
+Previous OAuth, synthetic recovery and cross-process lock tests are
+important safety engineering, not proof of the core rollover goal.
+
+**Immediate next action sequence, with minimum user intervention:**
+1. Fetch *current* PR #1 HEAD, this handoff, owner startup evidence and
+   research Issue #2. Inspect new HEAD's GitHub Actions jobs and failures.
+   If an actual source/CI defect exists, diagnose and fix with a test.
+2. Reconcile exact WScript shared path evidence with the two active
+   watchdog candidates. Design a **read-only, sanitized, approved**
+   deterministic mapping of task invocation → process ancestry and
+   restart behavior; **do not** infer the last launcher from recent
+   task runs. Verify what is possible without changing live settings.
+3. Build/test (in disposable Windows fixtures first) an *owner-authorized*,
+   reversible old-writer shutdown and prevention of legacy auto-relaunch
+   with monitoring of **all** real supervisors. Do not issue actual
+   production stops or task changes without separate authorization.
+4. Verify existing OAuth issuer/state owner using tightly scoped,
+   approved private inspection; preserve OAuth registrations/client
+   tokens without printing or uploading secrets. Plan a private
+   rollback-safe state/installer cutover. Do not run `init` or rotate
+   Owner Token during migration.
+5. After explicit live-cutover authorization, prove real ChatGPT client
+   continuity and then return to **authenticated original consumer
+   Project CHAT event capture**, successor conversation handoff and two
+   unattended rollovers.
+6. On each completed milestone: **commit source + test**, verify actual
+   CI, update this file and post exact SHA/run/blocked gates to private
+   research Issue #2. Don't imply background work or 2/2 without evidence.
+
+**If a connector reports approval required:** honor the refusal and
+report exactly what remains blocked. Do not bypass protection or
+invent results. Use this GitHub record to resume a new user-invoked chat.
+
+---
+
 ## Where to pick up
 
 - Review-source repository: [GBY0824/chatgpt2codex](https://github.com/GBY0824/chatgpt2codex), branch `goal-app-auth-review-20261101`, **draft and unmerged PR [#1](https://github.com/GBY0824/chatgpt2codex/pull/1)**. Original upstream: `ezBuilder/chatgpt2codex`. Do not silently merge to main or upstream.
