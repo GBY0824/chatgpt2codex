@@ -17,6 +17,7 @@ on:
       - "scripts/goal_app_local_oauth_smoke_20261101.mjs"
       - "scripts/verify-legacy-mcp-compat.mjs"
       - "scripts/verify-legacy-auth-continuity.mjs"
+      - "scripts/inspect-oauth-state-readonly.mjs"
       - "scripts/verify-synthetic-windows-cutover.mjs"
       - "scripts/verify-synthetic-windows-crash-recovery.mjs"
       - "scripts/verify-synthetic-windows-locks.mjs"
@@ -324,6 +325,7 @@ jobs:
           Copy-Item -Path scripts\Prepare-GoalAppOfflineStage.ps1 -Destination staging-release\Prepare-GoalAppOfflineStage.ps1
           Copy-Item -Path scripts\Inspect-OneMcpCutoverReadiness.ps1 -Destination staging-release\Inspect-OneMcpCutoverReadiness.ps1
           Copy-Item -Path scripts\Inspect-OneMcpStartupReadOnly.ps1 -Destination staging-release\Inspect-OneMcpStartupReadOnly.ps1
+          Copy-Item -Path scripts\inspect-oauth-state-readonly.mjs -Destination staging-release\inspect-oauth-state-readonly.mjs
           Copy-Item -Path scripts\New-OneMcpVerifiedProgramSnapshot.ps1 -Destination staging-release\New-OneMcpVerifiedProgramSnapshot.ps1
           @'
           GOAL APP WINDOWS ISOLATED SOURCE BUNDLE
@@ -441,7 +443,7 @@ jobs:
             throw "Offline bundle stage verification did not stay inactive"
           }
           if (!(Test-Path (Join-Path $destination "dist/cli.js"))) { throw "Stage executable missing" }
-          foreach ($name in @("Inspect-OneMcpCutoverReadiness.ps1", "Inspect-OneMcpStartupReadOnly.ps1", "New-OneMcpVerifiedProgramSnapshot.ps1")) {
+          foreach ($name in @("Inspect-OneMcpCutoverReadiness.ps1", "Inspect-OneMcpStartupReadOnly.ps1", "New-OneMcpVerifiedProgramSnapshot.ps1", "inspect-oauth-state-readonly.mjs")) {
             if (!(Test-Path (Join-Path $destination $name))) {
               throw "Required read-only inspection script missing from sealed bundle"
             }
