@@ -45,3 +45,31 @@ jobs:
       - run: npm ci
       - name: Existing full suite on native macOS
         run: npm test
+
+  windows-source-regressions:
+    # Isolated hosted Windows runner; no access to the user's installed
+    # ChatGPT To Codex, OAuth credentials, Tailscale, Chrome or research state.
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify OpenSSL available for loopback TLS regression
+        shell: pwsh
+        run: |
+          $openssl = Get-Command openssl -ErrorAction SilentlyContinue
+          if (-not $openssl) {
+            $candidate = "C:\Program Files\Git\usr\bin\openssl.exe"
+            if (-not (Test-Path $candidate)) { throw "OpenSSL not available on runner" }
+            Split-Path $candidate | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+      - name: Windows GOAL OAuth and local HTTPS regressions
+        run: npx vitest run src/server/goal-app-intent.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts
+      - name: Windows TypeScript typecheck
+        run: npm run typecheck
+      - name: Windows source build only
+        run: npm run build
