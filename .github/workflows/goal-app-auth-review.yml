@@ -361,6 +361,30 @@ jobs:
           } catch {
             if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
           }
+          # A hidden extra was missed by the older -Recurse -File default.
+          Copy-Item -LiteralPath (Join-Path "staging-release" "STAGING_README.txt") -Destination (Join-Path $tampered "STAGING_README.txt") -Force
+          $hidden = Join-Path $tampered "unmanifested-hidden.bin"
+          [IO.File]::WriteAllText($hidden, "synthetic-hidden-not-in-manifest")
+          [IO.File]::SetAttributes($hidden, [IO.FileAttributes]::Hidden)
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-hidden-stage") | Out-Null
+            throw "A hidden unmanifested file was incorrectly staged"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_UNLISTED_FILE") { throw }
+          }
+          Remove-Item -LiteralPath $hidden -Force
+          # A directory junction points outside the candidate file tree and
+          # must be rejected rather than silently followed or ignored.
+          $junction = Join-Path $tampered "test-unmanifested-junction"
+          New-Item -ItemType Junction -Path $junction -Target $destination -ErrorAction Stop | Out-Null
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-junction-stage") | Out-Null
+            throw "A junction escaped staged bundle verification"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_BUNDLE_SYMLINK_FORBIDDEN|STAGE_REPARSE_PATH_REFUSED") { throw }
+          }
+          Remove-Item -LiteralPath $junction -Force
+          Write-Host "OFFLINE_STAGE_HIDDEN_EXTRA_AND_JUNCTION_DENIAL_PASS"
       - name: Upload isolated Windows bundle (not installed)
         uses: actions/upload-artifact@v4
         with:
