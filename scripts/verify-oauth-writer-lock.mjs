@@ -26,7 +26,7 @@ if(process.argv[3]==='--worker') {
   const dir=process.argv[4];
   const worker=Number(process.argv[5]);
   if(!dir || !path.isAbsolute(dir)||!path.basename(path.dirname(dir)).startsWith(marker) ||
-     !Number.isSafeInteger(worker)||worker<0||worker>=workers)throw Error('SYNTHETIC_WORKER_ARGUMENT_DENIED');
+     !Number.isSafeInteger(worker)||worker<0||worker>workers)throw Error('SYNTHETIC_WORKER_ARGUMENT_DENIED');
   const store=new JsonOAuthStore(dir);
   for(let k=0;k<clientsPerWorker;k++) {
     await store.registerClient(clientSpec(worker,k),[]);
