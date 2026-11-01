@@ -69,8 +69,43 @@ try {
     const newFields = Object.keys(newTools[name]?.inputSchema?.shape ?? {});
     const removed = oldFields.filter((field) => !newFields.includes(field));
     if (removed.length) removedFields.push(name + "(" + removed.join(",") + ")");
+    for (const field of oldFields.filter((x) => newFields.includes(x))) {
+      const previous = oldTools[name].inputSchema.shape[field];
+      const candidate = newTools[name].inputSchema.shape[field];
+      const signature = (schema) => [
+        schema?._def?.typeName ?? "unknown",
+        schema?.isOptional?.() ?? "unknown",
+        schema?.isNullable?.() ?? "unknown",
+      ];
+      assert(
+        JSON.stringify(signature(previous)) === JSON.stringify(signature(candidate)),
+        "LEGACY_MCP_INPUT_FIELD_CONTRACT_CHANGED",
+        name + "." + field,
+      );
+    }
   }
   assert(removedFields.length === 0, "LEGACY_MCP_INPUT_FIELDS_REMOVED", removedFields.join(";"));
+
+  // The model-visible registry is narrower than internal registration: keep
+  // existing visible tools visible and existing hidden tools hidden.
+  const listed = async (server) => {
+    const handler = server.server?._requestHandlers?.get("tools/list");
+    assert(typeof handler === "function", "PUBLIC_MCP_TOOL_LIST_UNAVAILABLE");
+    const response = await handler({ method: "tools/list", params: {} });
+    return (response.tools ?? []).map((tool) => tool.name).sort();
+  };
+  const [oldVisible, newVisible] = await Promise.all([listed(oldServer), listed(newServer)]);
+  const missingVisible = oldVisible.filter((name) => !newVisible.includes(name));
+  const newVisibleTools = newVisible.filter((name) => !oldVisible.includes(name));
+  assert(missingVisible.length === 0, "LEGACY_VISIBLE_MCP_TOOL_REMOVED", missingVisible.join(","));
+  assert(
+    JSON.stringify(newVisibleTools) === JSON.stringify(["goal_app_command"]),
+    "UNREVIEWED_VISIBLE_MCP_TOOL_ADDITION",
+    newVisibleTools.join(","),
+  );
+  const newlyExposed = oldNames
+    .filter((name) => !oldVisible.includes(name) && newVisible.includes(name));
+  assert(newlyExposed.length === 0, "LEGACY_INTERNAL_TOOL_EXPOSED", newlyExposed.join(","));
 
   const oldHttp = oldBuild.http.defaultHttpServerConfig();
   const newHttp = newBuild.http.defaultHttpServerConfig();
@@ -100,6 +135,9 @@ try {
   console.log(JSON.stringify({
     code: "LEGACY_MCP_CONTRACT_SUPERSET_PASS",
     legacyToolsPreserved: oldNames.length,
+    legacyVisibleToolsPreserved: oldVisible.length,
+    legacyHiddenToolsNotExposed: true,
+    originalInputFieldSchemasPreserved: true,
     reviewedNewTool: additions[0],
     existingInputFieldsRemoved: 0,
     legacyHttpDefaultsPreserved: true,
