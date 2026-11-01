@@ -209,7 +209,7 @@ jobs:
           } catch {
             if ($_.Exception.Message -notmatch "SNAPSHOT_DESTINATION_ALREADY_EXISTS") { throw }
           }
-          [IO.File]::WriteAllText((Join-Path $snapshot "program/assets/hidden.cfg"),"tampered backup")
+          [IO.File]::WriteAllText((Join-Path $snapshot "program/package.json"),"tampered backup")
           $rejectedTarget = Join-Path $fixture "restore-must-fail"
           try {
             & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $rejectedTarget -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | Out-Null
