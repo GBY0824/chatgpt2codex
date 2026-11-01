@@ -348,6 +348,17 @@ export class JsonOAuthStore {
     });
   }
 
+  /**
+   * Used before CLI owner-token changes: fail early if a previous writer
+   * left a stale lock. This is a preflight, not a transactional guarantee
+   * across the later owner-token and OAuth file writes.
+   */
+  async assertWritable(): Promise<void> {
+    await this.locked(async () => {
+      await this.load();
+    }, true);
+  }
+
   async clearAll(): Promise<void> {
     await this.locked(async () => {
       // Explicit token rotation still must not overwrite a damaged OAuth
