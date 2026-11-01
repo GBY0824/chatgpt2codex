@@ -45,6 +45,27 @@ try {
   assert.equal(digest(await readFile(ownerFile)),ownerBefore,'SYNTHETIC_OWNER_TOKEN_FILE_CHANGED');
   assert.equal(digest(await readFile(oauthFile)),oauthBefore,'SYNTHETIC_OAUTH_CORRUPTION_DESTROYED');
   assert.equal(await ownerModule.verifyOwnerToken(state,fakeToken),true);
+  // An existing but valid OAuth document with a stale writer claim must
+  // also refuse Owner Token replacement BEFORE the owner hash changes.
+  await writeFile(oauthFile,JSON.stringify({
+    version:1,updatedAt:Date.now(),clients:[],accessTokens:[],refreshTokens:[]
+  }));
+  const cleanOauthHash=digest(await readFile(oauthFile));
+  const staleLock=path.join(state,'oauth-write.lock');
+  const staleMarker='{"version":1,"pid":9999999,"createdAt":0}';
+  await writeFile(staleLock,staleMarker,{flag:'wx'});
+  const blocked=spawnSync(process.execPath,
+    [cli,'owner-token','--generate','--isolated-state-dir',state],{
+    cwd:workspace,encoding:'utf8',timeout:20000,windowsHide:true
+  });
+  assert(!blocked.error,'SYNTHETIC_STALE_LOCK_CLI_FAILED_TO_START');
+  assert.notEqual(blocked.status,0,'SYNTHETIC_STALE_LOCK_OWNER_ROTATION_ALLOWED');
+  assert((blocked.stderr||'').includes('OAUTH_WRITE_LOCK_BUSY_OR_STALE'),
+    'SYNTHETIC_STALE_LOCK_WRONG_REJECTION_REASON');
+  assert.equal(digest(await readFile(ownerFile)),ownerBefore,'OWNER_HASH_CHANGED_ON_STALE_LOCK');
+  assert.equal(digest(await readFile(oauthFile)),cleanOauthHash,'OAUTH_CHANGED_ON_STALE_LOCK');
+  assert.equal(await readFile(staleLock,'utf8'),staleMarker,'STALE_LOCK_WAS_AUTO_REMOVED');
+  console.log('STALE_OAUTH_CLI_ROTATION_REFUSED_BEFORE_OWNER_HASH_CHANGE');
   console.log(JSON.stringify({
     code:'CORRUPT_OAUTH_CLI_ROTATION_REFUSED_BEFORE_OWNER_HASH_CHANGE',
     testedCommands:['owner-token --generate','owner-token --set-stdin','init --rotate-owner-token'],
