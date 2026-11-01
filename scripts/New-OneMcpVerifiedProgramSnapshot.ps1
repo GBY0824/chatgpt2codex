@@ -87,7 +87,7 @@ function Compare-Tree([string]$Root,$Expected) {
     $rel = [string]$entry.path
     if (!$rel -or $rel -match '[\x00-\x1f:\\]' -or $rel.StartsWith('/') -or
         [IO.Path]::IsPathRooted($rel) -or
-        ($rel.Split('/') | Where-Object { $_ -in @('','..','.') }).Count -gt 0 -or
+        @($rel.Split('/') | Where-Object { $_ -in @('','..','.') }).Count -gt 0 -or
         !$observed.Add($rel) -or
         [string]$entry.sha256 -cnotmatch '^[a-f0-9]{64}$' -or
         [long]$entry.bytes -lt 0) {
