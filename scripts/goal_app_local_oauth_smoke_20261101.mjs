@@ -11,8 +11,26 @@ const TIMEOUT_MS = 4 * 60 * 1000;
 const short = (x) => String(x).slice(0, 160);
 const fail = (message) => { throw new Error(message); };
 async function request(path, options = {}) {
-  const resp = await fetch(`${BASE}${path}`, { redirect: 'error', signal: AbortSignal.timeout(15_000), ...options });
-  return resp;
+  try {
+    return await fetch(`${BASE}${path}`, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
+      ...options,
+    });
+  } catch (error) {
+    // Do not confuse a stopped loopback stage with failed OAuth or a bad Owner Token.
+    // Never echo tokens, OAuth codes, or request payloads in diagnostics.
+    const code = error?.cause?.code;
+    if (code === 'ECONNREFUSED' || code === 'ENETUNREACH' || code === 'EHOSTUNREACH') {
+      fail('LOCAL_STAGING_NOT_LISTENING: http://127.0.0.1:7987 연결 실패. ' +
+        '격리 시험 서버를 별도 PowerShell에서 다시 실행한 후 이 검증을 다시 시작하세요. ' +
+        '토큰 재발급은 필요하지 않습니다.');
+    }
+    if (error?.name === 'TimeoutError' || code === 'ETIMEDOUT') {
+      fail('LOCAL_STAGING_HTTP_TIMEOUT: 격리 시험 서버 응답 지연. 포트 7987 상태를 확인하세요.');
+    }
+    fail('LOCAL_STAGING_HTTP_REQUEST_FAILED: ' + String(code || error?.name || 'unknown'));
+  }
 }
 async function readJson(path, options = {}) {
   const r = await request(path, options);
