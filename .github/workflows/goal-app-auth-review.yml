@@ -92,7 +92,7 @@ jobs:
           if (status.status !== 0) throw new Error("isolated status failed: " + status.stderr);
           const parsed = JSON.parse(status.stdout);
           if (parsed.configured !== false) throw new Error("Inherited owner token");
-          const isolatedArgs = ["serve", "--http", "--workspace", isolated,
+          const isolatedArgs = ["serve", "--http", "--workspace", process.cwd(),
             "--isolated-state-dir", isolated, "--host", "127.0.0.1",
             "--port", "7987", "--public-url", "http://127.0.0.1:7987"];
           // The existing app's desktop-control flag defaults to ON even if
@@ -101,6 +101,9 @@ jobs:
           if (controlOn.status === 0 || !controlOn.stderr.includes(
               "ISOLATED_STAGE_DESKTOP_CONTROL_MUST_BE_DISABLED")) {
             throw new Error("Default-on desktop control gate missed: " + controlOn.stderr);
+          }
+          if (fs.existsSync(isolated)) {
+            throw new Error("Denied desktop-control operation created state");
           }
           // Explicitly OFF for this test process only. A valid localhost port
           // must pass the staging gate, then fail closed because no owner
@@ -126,7 +129,11 @@ jobs:
               !blocked.stderr.includes("ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED")) {
             throw new Error("Production-port refusal missing: " + blocked.stderr);
           }
-          if (fs.existsSync(isolated)) throw new Error("Blocked call wrote isolated state");
+          // The successful guard pass can legitimately create a separate,
+          // empty staging state before refusing the missing owner token.
+          if (!fs.existsSync(isolated)) {
+            throw new Error("Valid isolated execution never reached state initialization");
+          }
           console.log("ISOLATED_STATE_CLI_FAIL_CLOSED_PASS");
           '@ | node -
           if ($LASTEXITCODE -ne 0) { throw "Windows isolated CLI smoke failed" }
