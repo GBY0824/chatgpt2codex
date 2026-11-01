@@ -1,5 +1,47 @@
 # One-MCP integration gates — production 7979, review 7987
 
+## 2026-11-02 — STOP treating saved research watchdog source as installed runtime
+
+**Direct Windows read-only provenance shows a real mismatch.**
+The installed `Watch-ChatGPTToCodexMcp.ps1` Git blob is NOT
+`c553fe6d740e37bb949025a7d8e41f27b3093256`, the blob SHA of
+`GBY0824/freqtrade-mcp-research` `main`'s saved script.
+The installed script is 29,747 bytes with UTF-8 BOM, about 702
+PowerShell lines and parser error count zero; its direct lexical
+`Start-ScheduledTask` call count is zero. The saved GitHub
+script has direct `Start-ScheduledTask` branches for absent or
+unhealthy 7979. It is **not valid** to infer those two branch
+behaviors are present in the installed Windows version.
+Neither file was executed and no raw script contents, tokens or
+OAuth values were emitted. A fuller command inventory was denied
+by connected-tool approval; do not circumvent this denial.
+
+**Mandatory G3/G4 evidence refinement** at code commit
+`321422388f6a48c6ae19e122e63afca65bfddc84`:
+`verify-synthetic-supervisor-quiescence.mjs` requires one-to-one
+SHA-256 and actual deployed mode audit for all four script roles:
+(1) watchdog, (2) original main launcher,
+(3) WScript dispatcher, and (4) current-user Startup entry.
+Merely finding matching filenames, stored research scripts or
+synthetic task names must never unblock production cutover.
+The 4-role fixture uses **synthetic dummy 64-hex values**;
+`productionCutoverAuthorized=false` in all cases.
+Real owners' script bytes/hashes have NOT been inserted into
+GitHub. The SHA equality must refer to the SAME inspected deployed
+bytes and separately reviewed version, not forced equality with a
+historically preserved different repo revision.
+
+**Remaining evidence:** safely inspect deployed control-flow and
+task argument modes only through owner-authorized, privacy-safe means,
+confirm indirect relaunch routes and current private OAuth
+issuer/state identity, rehearse reversible quiescence and backups
+on a synthetic clone, then request separate live cutover approval.
+Until these gates pass, leave both 7979 and 7987 intact and do not
+let old 0.2.0 and candidate share live OAuth writes.
+
+---
+
+
 **Status:** compatibility validation in progress. **NO production deployment or merge approved.**
 This is an upgrade of the *same* ChatGPT To Codex codebase, **not** a permanent second MCP service.
 
