@@ -116,6 +116,53 @@ is disabled. Do not disable tasks or edit launchers on the basis of
 path identity alone. Exact script behavior/arguments remain unprinted
 and unconfirmed. No service restarts, OAuth data access or production
 changes were made.
+## 2026-11-02 follow-up: current task policy, multiple re-launch routes (read-only)
+
+An additional direct Windows inspection via the connected Codex bridge, with
+a **tests-only lease** and no configuration or secret reads, independently
+observed **exactly one** listener PID on 7979. The same listener's WScript
+ancestor was present at this observation.
+
+Current task metadata at the inspection instant:
+
+| Task | State | Last successful local run | Trigger types | Multiple instances | Execution time limit |
+| --- | --- | --- | --- | --- | --- |
+| `ChatGPTToCodexEmergent-Watchdog` | Ready | 2026-11-02 04:09 KST | Logon + Time | IgnoreNew | PT2M |
+| `ChatGPTToCodexMcpSelfHealing` | Ready | 2026-11-02 04:08 KST | Logon + Time | IgnoreNew | PT5M |
+| `ChatGPTToCodexOAuthGuard` | Disabled | 2026-09-14 16:04 KST | Logon + Time | IgnoreNew | PT5M |
+
+Both active watchdog candidates therefore remain configured to run again.
+A momentary `Running` state was also directly observed for the self-healing
+task before a subsequent `Ready` inspection; this transient observation
+**is not evidence that it created or owns the original node PID**.
+
+A bounded in-memory experiment compared textual argument suffixes after
+the shared WScript script extension. All three task action suffixes failed
+an exact textual match to the observed process suffix; the comparison is
+**not a reliable normalized argument identity proof** (quoting, wrapper
+options or different invocation parameters can all explain it). No raw
+arguments, paths or secrets were emitted. Do NOT use this experiment as a
+reason to disable a particular task.
+
+NEW **source-only fail-closed policy rehearsal**:
+`scripts/verify-synthetic-supervisor-quiescence.mjs` is executed on isolated
+Windows CI by the review workflow. It rejects omitting either enabled
+watchdog, the disabled-but-registered guard, current-user Startup,
+unverified external launch mechanisms, missing re-launch observations,
+a running old OAuth writer, unpinned original state/backups, or missing
+owner approval. The test deliberately returns
+`productionCutoverAuthorized=false` even for a perfect synthetic fixture.
+It does NOT examine or disable real Windows tasks. Source commits
+`8e809425597560da1a9d0e32dffc769f9b998a6c` and
+`4162ea1728d54793594e38a5dbb3153f2ce84053`.
+GitHub CI must be checked against the **latest** HEAD before any success claim.
+
+**Consequence:** stopping only one plausible watchdog is not a safe
+migration plan; stopping both without handling Startup and unenumerated
+restart routes is also insufficient. Historical launcher attribution remains
+unverified. Actual production stop/restart, live OAuth inspection, and any
+task changes remain approval-gated.
+
 ## Next approval and safety gate
 
 Before an in-place single-MCP upgrade, identify who actually supervises
