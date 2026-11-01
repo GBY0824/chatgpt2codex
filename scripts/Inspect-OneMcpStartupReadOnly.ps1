@@ -21,6 +21,11 @@ $base = [ordered]@{
   allUsersStartupCandidatePresent = $false
   startupFoldersInspected = $false
   startupCandidateProvenLauncher = $false
+  taskNameMetadataInspected = $false
+  matchingScheduledTaskCount = 0
+  readyWscriptTaskCandidateCount = 0
+  identifiedOwnerScheduledTask = $false
+  taskActionArgumentsRead = $false
   automaticStartupMechanismIdentified = $false
   ownerApprovalRequired = $true
   fullProcessCommandLineRead = $false
@@ -129,6 +134,29 @@ try {
   # No conclusion if either scope is inaccessible.
 }
 
+# Task names and executable BASENAMES only. We never inspect/print a
+# scheduled task's arguments, working folder, owner, credential or script.
+# Multiple plausible WScript tasks cannot identify which owns this PID.
+try {
+  $relatedTasks = @(Get-ScheduledTask -ErrorAction Stop |
+    Where-Object { $_.TaskName -match '(?i)chatgpt|codex|mcp' })
+  $base.taskNameMetadataInspected = $true
+  $base.matchingScheduledTaskCount = $relatedTasks.Count
+  $readyWscript = 0
+  foreach ($task in $relatedTasks) {
+    if ([string]$task.State -notin @("Ready", "Running")) { continue }
+    foreach ($action in @($task.Actions)) {
+      if ($action.Execute -and [IO.Path]::GetFileName([string]$action.Execute) -ieq "wscript.exe") {
+        $readyWscript++
+        break
+      }
+    }
+  }
+  $base.readyWscriptTaskCandidateCount = $readyWscript
+} catch {
+  # Some Windows editions or restricted accounts hide scheduled task data.
+  # Unknown is never a claim that the service has no scheduler/watchdog.
+}
 $base.code = "SINGLE_MCP_LISTENER_PROCESS_OBSERVED_STARTUP_STILL_UNVERIFIED"
 # A process-parent observation and service PID are insufficient evidence of
 # Task Scheduler, Run-key, Start Menu, tunnel or authenticated plugin owners.
