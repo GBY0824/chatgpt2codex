@@ -157,6 +157,37 @@ It does NOT examine or disable real Windows tasks. Source commits
 `4162ea1728d54793594e38a5dbb3153f2ce84053`.
 GitHub CI must be checked against the **latest** HEAD before any success claim.
 
+### Full Task Scheduler action scan — correction to three-task assumption
+
+A follow-up direct Windows read-only scan checked **234 task definitions**
+and **236 task actions** without filtering by task name. There were
+**9 WScript executable actions**, all 9 script argument paths parsed,
+and **7 actions whose normalized full script path exactly equals the
+original live 7979 WScript ancestor's script path**. At the instant of
+the successful complete scan, **3** of those matching tasks were
+Running, **2** Ready, and **2** Disabled. The WScript ancestor script
+path was successfully parsed. No script path, action arguments, process
+command lines, tokens or raw credentials were emitted. No changes.
+
+An initial scan discovered seven matches but also raised exceptions for
+other tasks with malformed executable strings. **Do not treat that initial
+run as complete evidence.** The corrected independent full scan used a
+non-throwing executable-name check; all 236 actions were examined,
+with zero WScript argument parsing failures.
+
+This disproves the assumption that only the three previously named
+tasks can invoke the shared launcher: additional task action matches
+include categories such as Tailscale/OSINT, and a further task name was
+redacted by the connector. Exact script-path equality does NOT prove
+that all seven launch or control the same old Node instance: they may
+pass different arguments. But all seven require an explicit,
+separately approved impact analysis before any quiescence/cutover plan.
+The GitHub synthetic test was corrected in code commit
+`3bd9e8a489262c09d79bbbea779674a160b47564` so its inventory size
+is **dynamic**, not the former fixed three tasks; it rejects missing
+extra actions and unparseable scans. Synthetic CI is not proof of
+real task suppression.
+
 **Consequence:** stopping only one plausible watchdog is not a safe
 migration plan; stopping both without handling Startup and unenumerated
 restart routes is also insufficient. Historical launcher attribution remains
