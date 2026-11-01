@@ -12,6 +12,17 @@
 - Detailed constraints, CI and security proof boundaries: [MCP_SINGLE_RUNTIME_MIGRATION.md](./MCP_SINGLE_RUNTIME_MIGRATION.md).
 - Existing owner Windows production: original v0.2.0 localhost **127.0.0.1:7979**, installed under `%LOCALAPPDATA%\Programs\ChatGPT To Codex`. Separate isolated test-source server **127.0.0.1:7987**; *do not promote this older installed stage* because it lacks newer build provenance. At last read-only listener check both were alive; PIDs can change.
 - Original long-term research repository: `GBY0824/freqtrade-mcp-research`, Windows workspace `D:\freqtrade_mcp`. Preserve existing service/research/codex runtime; do not install this fork into it without independent owner approval.
+- **NEW read-only evidence on REAL original Windows MCP lifecycle (2026-11-02):**
+  [`OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md`](./OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md).
+  Original port 7979 listener is `node.exe`, direct parent `powershell.exe`,
+  next ancestor `wscript.exe`; the current-user Startup directory contains
+  filename `ChatGPTToCodexEmergent.cmd`. This is direct **process ancestry
+  plus a plausible startup entry**, NOT yet proven supervisor/cutover owner.
+  The startup file contents, process arguments and owner tokens were
+  **not** read. New owner/startup read-only source inventory reports
+  basename-only ancestry and filename-presence booleans; never prints
+  commands/credentials or authorizes a service change. All-user Startup
+  folder had no matching candidate name.
 
 ## User's actual objective (nonnegotiable)
 
