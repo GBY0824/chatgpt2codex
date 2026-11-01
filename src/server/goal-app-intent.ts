@@ -168,7 +168,7 @@ export async function goalAppCommand(
         revision: s.revision, researchExecutionAuthorized: false, effectsIssued: 0 };
     }
     // OFF always fences an older ON. Repeated ON does not grant extra cycles.
-    const next: IntentState = { schema: 1, requestedMode: input.action,
+    const next: IntentState = { schema: 1, requestedMode: input.action === "ON" ? "ON" : "OFF",
       revision: s.revision + (input.action === "OFF" || s.requestedMode !== "ON" ? 1 : 0),
       lastCommandId: randomUUID() };
     if (next.revision > Number.MAX_SAFE_INTEGER) {
