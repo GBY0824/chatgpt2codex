@@ -1,5 +1,84 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — PRIORITY SHIFT: INSTALLED WATCHDOG DIFFERS FROM SAVED GITHUB SOURCE
+
+**This is a user-commanded CONTINUATION, not autonomous ChatGPT
+rollover. All changes are PR #1 source/tests/docs only.** This is
+the latest owner-machine evidence and supersedes earlier assumptions
+that `freqtrade-mcp-research`'s saved `Watch-ChatGPTToCodexMcp.ps1`
+represents the actual deployed Windows watchdog.
+
+- Direct connected Codex **read-only** Windows check: installed
+  `%LOCALAPPDATA%/ChatGPTToCodexMCP/Watch-ChatGPTToCodexMcp.ps1`
+  Git blob SHA **DOES NOT MATCH** the GitHub `main` research blob
+  `c553fe6d740e37bb949025a7d8e41f27b3093256`.
+  Local file 29,747 bytes, UTF-8 BOM, about 702 lines, no CRLF,
+  PowerShell AST ParserError count **0**. Repeat in-memory Git blob
+  after CRLF normalization still mismatched. The installed main
+  launcher script exists but a verified matching GitHub reference
+  has not been identified. Exact local hashes were redacted by
+  the connector and **were not published**.
+- Static lexical check on installed watchdog source (without
+  executing it) found **zero direct** `Start-ScheduledTask`,
+  `Stop-ScheduledTask` and `Start-Process` references, but
+  references to main Tailscale task, restart marker, mutex and
+  health/OAuth/owner-token checks. The different *saved research*
+  script has direct scheduled task start branches for missing or
+  unhealthy original 7979. Thus neither the old saved branch
+  behavior nor absence of indirect methods can be asserted about
+  the installed code. A follow-up detailed command-tree analysis
+  request was **blocked by connector approval**, not bypassed.
+- Existing previous live proof still stands: original 7979
+  Node→PowerShell→WScript, WScript EnginePID matches one Running
+  `ChatGPT To Codex MCP - Tailscale` scheduled task (5 retries,
+  1-minute interval); seven same-script scheduled action paths,
+  but distinct action-argument modes, and other recurrent watchdogs
+  and Startup entry remain uncertain re-launch candidates.
+- **Source-only safety gate change**
+  [321422388f6a48c6ae19e122e63afca65bfddc84](https://github.com/GBY0824/chatgpt2codex/commit/321422388f6a48c6ae19e122e63afca65bfddc84):
+  synthetic multi-supervisor cutover plan now refuses unless all
+  four current installed script roles (watchdog, main launcher,
+  shared WScript dispatcher, Startup entry) have a **SHA-256 for the
+  observed file matching the SHA of separately audited same bytes**,
+  and verified behavior/dispatch/relaunch modes. Positive test
+  fixture SHA values are **dummy synthetic**. Adds eight new
+  fail-closed negative cases for missing/duplicated inventories,
+  altered/unset hashes and unaudited modes. It remains a nonlive
+  logical policy test and *never* authorizes production.
+- New owner receipt:
+  `docs/OWNER_WINDOWS_7979_STARTUP_EVIDENCE.md` at commit
+  `a71745e6a951efe90a001eb1691f58f3e8e78495`.
+  New migration safety decision:
+  `docs/MCP_SINGLE_RUNTIME_MIGRATION.md` at commit
+  `bda3397750a3d27620c588897967c0902674499c`.
+- Prior HEAD `7aa34b01f87d7fc163034a5a7131c402bdaf5cea`,
+  [Actions 41360405589](https://github.com/GBY0824/chatgpt2codex/actions/runs/41360405589),
+  independently **COMPLETED SUCCESS 3/3** Linux/Windows/macOS.
+  The NEW source SHA `321422388...` has
+  [Actions 41361096184](https://github.com/GBY0824/chatgpt2codex/actions/runs/41361096184):
+  source/macOS completed SUCCESS; Windows was **IN PROGRESS**
+  at initial checkpoint. Check exact SHA's final outcome, not
+  the prior CI receipt. New docs commits also trigger workflows.
+- Actual installed original `7979` and isolated `7987` remain
+  **untouched**; old installed v0.2.0 cannot share OAuth writer lock
+  with new candidate. No process/task stop, browser effect, token
+  read/rotation, installer update or new automation.
+  **GOAL actual research executions 0; actual unattended ordinary
+  consumer Project CHAT rollovers 0/2**.
+
+**Next smallest authorized step:** verify new source gate CI, then
+obtain safe positive local provenance/behavior review for the deployed
+watchdog and wrapper without violating the connector's approval
+denial. Until this is verified, require `UNKNOWN_RELAUNCH_ROUTE`
+and NO production cutover. Preserve existing OAuth/client
+connections and seek separately scoped owner approval before any
+live task disable, state backup, installer, restart or switch.
+After migration safety, original ChatGPT consumer turn attestation
+and two unattended Project rollover proofs are still missing.
+
+---
+
+
 ## 2026-11-02 KST — VERIFIED NEW INSPECTOR REPAIR CI / SAFE CURRENT RESUME
 
 **Actual source & CI, newly independently confirmed:**
