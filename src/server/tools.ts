@@ -934,7 +934,6 @@ export function registerTools(server: unknown, ctx: ToolContext): void {
       description:
         "Read GOAL app status or record ON/OFF. Requires separate approved OAuth goal scope. Never executes research, changes P3/Stage, or counts ordinary ChatGPT rollover. ON requires the current expectedRevision.",
       annotations: LOCAL_STATE_ANNOTATIONS,
-      securitySchemes: GOAL_APP_SCHEMES,
       _meta: chatGptToolMeta(
         "Checking GOAL app intent...", "GOAL app intent checked",
         { securitySchemes: GOAL_APP_SCHEMES },
