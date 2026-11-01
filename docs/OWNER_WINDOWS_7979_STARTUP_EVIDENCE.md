@@ -194,6 +194,47 @@ restart routes is also insufficient. Historical launcher attribution remains
 unverified. Actual production stop/restart, live OAuth inspection, and any
 task changes remain approval-gated.
 
+### Argument-mode comparison across all seven shared-script task actions
+
+A further bounded **in-memory, read-only** comparison normalized the text
+after each task's quoted script path. All **7 tasks had distinct argument
+suffix groups**. Only ONE task had the same normalized argument suffix
+as the currently observed 7979 WScript ancestor:
+
+- `ChatGPT To Codex MCP - Tailscale` — one exact normalized suffix match,
+  state **Running** at the inspection instant.
+- The other six matched the shared script path but did **not** match the
+  original process's argument suffix. The watchdogs, OAuth Guard and
+  OSINT-labeled actions therefore should **not** be presumed to be
+  equivalent launches just because the launcher script path matches.
+
+This is strong evidence for the *invocation configuration* of the
+original WScript process. It is **not historical Task Scheduler start
+event proof** or a demonstration of the supervisor/relaunch behavior.
+The relevant Task Scheduler metadata also differs in time:
+the WScript ancestor was created **2026-10-17 10:42:16 KST**,
+whereas the Tailscale task's reported last run was
+**2026-10-29 15:02:09 KST**, with a nonzero reported last task
+result (`2147946720`) and Running state. The discrepancy prevents
+claiming the latter last-run record launched the current process.
+
+**Safety refinement:** A conservative cutover inventory must include
+all seven same-script actions, but must NOT blindly disable unrelated
+OSINT or other modes. Each mode must be classified with independent
+evidence into *can relaunch the old 7979 writer*, *proven unrelated to
+both legacy relaunch and shared OAuth writes*, or *unknown*. Unknown
+fails closed. Only demonstrated legacy-relauncher tasks should be
+quiesced under explicit owner approval.
+
+The isolated CI model was revised in
+`96ec8f15f78e9ca1691da12a140b506a926d2ba5` so a positively
+verified unrelated synthetic task can remain running; unsupported
+claims of unrelatedness are rejected. This is a model only.
+No real script contents or task settings were changed and no raw
+command lines, arguments, script paths, or token values were output.
+Verify the revision's matching GitHub Actions workflow before
+claiming PASS.
+
 ## Next approval and safety gate
 
 Before an in-place single-MCP upgrade, identify who actually supervises
