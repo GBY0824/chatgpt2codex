@@ -16,6 +16,11 @@ $base = [ordered]@{
   launchingParentObserved = $false
   processExecutableBasename = $null
   parentExecutableBasename = $null
+  processAncestryBasenames = @()
+  currentUserStartupCandidatePresent = $false
+  allUsersStartupCandidatePresent = $false
+  startupFoldersInspected = $false
+  startupCandidateProvenLauncher = $false
   automaticStartupMechanismIdentified = $false
   ownerApprovalRequired = $true
   fullProcessCommandLineRead = $false
@@ -81,6 +86,49 @@ try {
 } catch {
   # Access errors are not permission to infer any service ownership.
 }
+# Inspect at most six direct ancestor names, never any process command
+# line, environment variable, arguments, full paths, user identities or tokens.
+# Reject a younger "parent" after PID reuse as unproven ancestry.
+$chain = @()
+$cursor = $proc
+for ($depth = 0; $depth -lt 6 -and $null -ne $cursor; $depth++) {
+  $name = if ($cursor.ExecutablePath) { [IO.Path]::GetFileName([string]$cursor.ExecutablePath) } else { "unknown" }
+  $chain += $name
+  $nextPid = [int]$cursor.ParentProcessId
+  if ($nextPid -le 0 -or $nextPid -eq [int]$cursor.ProcessId) { break }
+  try {
+    $ancestor = Get-CimInstance -ClassName Win32_Process -Filter ("ProcessId = " + $nextPid) -ErrorAction Stop
+    if ($null -eq $ancestor) { break }
+    if ($ancestor.CreationDate -and $cursor.CreationDate -and
+        [datetime]$ancestor.CreationDate -gt [datetime]$cursor.CreationDate) { break }
+    $cursor = $ancestor
+  } catch {
+    break
+  }
+}
+$base.processAncestryBasenames = @($chain)
+
+# Startup folder inspection is filename metadata ONLY. No shortcuts or
+# scripts are opened, expanded or executed. Presence is supporting evidence,
+# never proof the observed PID was actually launched by that entry.
+try {
+  $userStartup = [Environment]::GetFolderPath('Startup')
+  $commonStartup = [Environment]::GetFolderPath('CommonStartup')
+  if ($userStartup -and $commonStartup) {
+    $startupEntries = @()
+    foreach ($folder in @($userStartup, $commonStartup)) {
+      if (!(Test-Path -LiteralPath $folder -PathType Container)) { throw "FOLDER_UNAVAILABLE" }
+      $startupEntries += ,@(Get-ChildItem -LiteralPath $folder -File -ErrorAction Stop |
+        Where-Object { $_.Name -match '(?i)chatgpt|codex|mcp' })
+    }
+    $base.startupFoldersInspected = $true
+    $base.currentUserStartupCandidatePresent = @($startupEntries[0]).Count -gt 0
+    $base.allUsersStartupCandidatePresent = @($startupEntries[1]).Count -gt 0
+  }
+} catch {
+  # No conclusion if either scope is inaccessible.
+}
+
 $base.code = "SINGLE_MCP_LISTENER_PROCESS_OBSERVED_STARTUP_STILL_UNVERIFIED"
 # A process-parent observation and service PID are insufficient evidence of
 # Task Scheduler, Run-key, Start Menu, tunnel or authenticated plugin owners.
