@@ -92,11 +92,39 @@ jobs:
           if (status.status !== 0) throw new Error("isolated status failed: " + status.stderr);
           const parsed = JSON.parse(status.stdout);
           if (parsed.configured !== false) throw new Error("Inherited owner token");
-          const blocked = run("serve", "--http", "--isolated-state-dir", isolated, "--port", "7979");
+          const isolatedArgs = ["serve", "--http", "--workspace", isolated,
+            "--isolated-state-dir", isolated, "--host", "127.0.0.1",
+            "--port", "7987", "--public-url", "http://127.0.0.1:7987"];
+          // The existing app's desktop-control flag defaults to ON even if
+          // CHATGPT2CODEX_CONTROL is absent: this MUST be diagnosed accurately.
+          const controlOn = run(...isolatedArgs);
+          if (controlOn.status === 0 || !controlOn.stderr.includes(
+              "ISOLATED_STAGE_DESKTOP_CONTROL_MUST_BE_DISABLED")) {
+            throw new Error("Default-on desktop control gate missed: " + controlOn.stderr);
+          }
+          // Explicitly OFF for this test process only. A valid localhost port
+          // must pass the staging gate, then fail closed because no owner
+          // token was generated. Never launch a real service in this smoke.
+          const offEnv = { ...process.env, CHATGPT2CODEX_CONTROL: "0" };
+          const safe = spawnSync(process.execPath, ["dist/cli.js", ...isolatedArgs], {
+            encoding: "utf8", timeout: 10000, windowsHide: true, env: offEnv,
+          });
+          if (safe.status !== 1 ||
+              !safe.stderr.includes("no owner token found") ||
+              safe.stderr.includes("ISOLATED_STAGE_LOOPBACK")) {
+            throw new Error("Valid staging arguments were wrongly blocked: " + safe.stderr);
+          }
+          // With control explicitly OFF, the production port must still be
+          // rejected before any server is started.
+          const deniedArgs = [...isolatedArgs];
+          deniedArgs[deniedArgs.indexOf("7987")] = "7979";
+          deniedArgs[deniedArgs.indexOf("http://127.0.0.1:7987")] = "http://127.0.0.1:7979";
+          const blocked = spawnSync(process.execPath, ["dist/cli.js", ...deniedArgs], {
+            encoding: "utf8", timeout: 10000, windowsHide: true, env: offEnv,
+          });
           if (blocked.status === 0 ||
               !blocked.stderr.includes("ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED")) {
-            throw new Error("Expected production-port refusal, got status " +
-              blocked.status + ", stderr " + blocked.stderr);
+            throw new Error("Production-port refusal missing: " + blocked.stderr);
           }
           if (fs.existsSync(isolated)) throw new Error("Blocked call wrote isolated state");
           console.log("ISOLATED_STATE_CLI_FAIL_CLOSED_PASS");
