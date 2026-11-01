@@ -181,3 +181,42 @@ Evidence requires the exact GitHub Actions Windows job logs with
 `SYNTHETIC_PROCESS_CRASH_AND_JOURNAL_RECOVERY_PASS`, the final run status,
 and a matching fork commit SHA. No schedule-based monitoring, exposed public
 endpoint or production cutover is included.
+
+## Concurrent operators and Windows locked-file rehearsal — synthetic only
+
+The CI-owned script `scripts/verify-synthetic-windows-locks.mjs` tests a
+**separate synthetic transaction-ownership design**, not the installed MCP.
+It accepts no real installation path. It creates a random marker-protected
+directory directly beneath the CI runner's OS temp directory, uses
+`fs.open(..., "wx")` to acquire an exclusive transaction lock, and verifies
+the owner process, independent contender processes and restoration tests are
+separate processes.
+
+- A live owner holds the lock while a second **upgrade** attempt and a
+  simultaneous **recovery** attempt both fail closed without changing the
+  synthetic installed tree or synthetic user state.
+- A normal owner release allows a new recovery request to acquire it.
+- A killed owner leaves a stale lock and both follow-on upgrade/recovery
+  requests refuse to proceed. The test harness alone may remove that
+  marker-proven stale lock during disposable fixture cleanup.
+- On Windows CI, a PowerShell child holds a **real .NET FileStream opened with
+  FileShare.None** on the synthetic installed `dist/cli.js`. A competing
+  Node read and directory rename must fail while the handle is open; the
+  synthetic state must be byte-for-byte unchanged.
+- After the Windows child closes, the synthetic directory move and rollback
+  must both work. On non-Windows platforms this particular file-sharing
+  subtest is *skipped*, not counted as a Windows proof.
+
+**Important limitation:** exclusive lock and file-sharing tests exercise a
+standalone model, not yet the earlier synthetic journal worker/recover code,
+much less any actual production updater. Cross-process lock ownership,
+crashed-owner stale-lock adjudication and journal recovery must be integrated
+and retested in a *single* eventual upgrader before G4 can close. Do not
+delete a real lock file, force-replace a locked Windows executable, bypass
+a running service, or use the old `Copy-Item -Force` installer.
+
+The Windows Actions job result is authoritative: check the synthetic
+`SYNTHETIC_LOCK_CASE_PASS` entries and
+`actualWindowsFileShareTested:true` in its final JSON. This does not test
+an OS reboot or physical power loss and does not modify the real port 7979
+instance or user credentials.
