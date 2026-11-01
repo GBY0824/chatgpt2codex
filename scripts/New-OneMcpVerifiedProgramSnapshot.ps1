@@ -110,18 +110,20 @@ $original = Assert-Absolute $ExistingProgramDir
 $snapshot = Assert-Absolute $SnapshotDir
 Assert-NoReparseAncestors $original
 Assert-NoReparseAncestors $snapshot
-if (!(Test-Path -LiteralPath $original -PathType Container)) {
-  throw 'SNAPSHOT_ORIGINAL_PROGRAM_MISSING'
-}
 if ($ExpectedCliSha -cnotmatch '^[a-f0-9]{64}$') {
   throw 'SNAPSHOT_EXTERNALLY_PINNED_CLI_SHA_REQUIRED'
-}
-if ((Get-Sha (Join-Path $original 'dist\cli.js')) -cne $ExpectedCliSha) {
-  throw 'SNAPSHOT_ORIGINAL_CLI_SHA_MISMATCH'
 }
 Assert-Separate $original $snapshot
 
 if ($Mode -eq 'Capture') {
+  # Capture requires the unchanged original installation and the pinned CLI.
+  # Restore MUST NOT: an actual failed upgrade may have replaced or removed it.
+  if (!(Test-Path -LiteralPath $original -PathType Container)) {
+    throw 'SNAPSHOT_ORIGINAL_PROGRAM_MISSING'
+  }
+  if ((Get-Sha (Join-Path $original 'dist\cli.js')) -cne $ExpectedCliSha) {
+    throw 'SNAPSHOT_ORIGINAL_CLI_SHA_MISMATCH'
+  }
   if ($RestoreDir) { throw 'SNAPSHOT_RESTORE_PATH_NOT_ALLOWED_IN_CAPTURE' }
   Assert-NewLocation $snapshot $original
   $before = @(Get-Tree $original)
@@ -160,6 +162,9 @@ if (!$RestoreDir) { throw 'SNAPSHOT_RESTORE_DESTINATION_REQUIRED' }
 $target = Assert-Absolute $RestoreDir
 Assert-Separate $snapshot $target
 Assert-NewLocation $target $original
+# Recovery is independently anchored to the externally pinned receipt and
+# immutable backup, not to a potentially replaced or missing installation.
+# No reads or writes of the original program contents occur in Restore mode.
 if (!(Test-Path -LiteralPath $snapshot -PathType Container)) { throw 'SNAPSHOT_DIRECTORY_NOT_FOUND' }
 $receiptFile = Join-Path $snapshot 'BACKUP_RECEIPT.json'
 if ($ExpectedReceiptSha -cnotmatch '^[a-f0-9]{64}$' -or
