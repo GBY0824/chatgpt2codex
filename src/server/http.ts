@@ -61,7 +61,7 @@ export function defaultHttpServerConfig(overrides: Partial<HttpServerConfig> = {
     oauth: {
       accessTokenTtlSeconds: 3600,
       refreshTokenTtlSeconds: 30 * 24 * 3600,
-      scopes: ["chatgpt2codex"],
+      scopes: ["chatgpt2codex", "chatgpt2codex.goal"],
       allowedRedirectHosts: ["chatgpt.com", "chat.openai.com"],
     },
     sessionTtlMs: 30 * 60 * 1000,
