@@ -16,6 +16,7 @@ on:
       - "scripts/Prepare-GoalAppOfflineStage.ps1"
       - "scripts/goal_app_local_oauth_smoke_20261101.mjs"
       - "scripts/verify-legacy-mcp-compat.mjs"
+      - "scripts/verify-legacy-auth-continuity.mjs"
       - "scripts/verify-synthetic-windows-cutover.mjs"
       - "scripts/verify-synthetic-windows-crash-recovery.mjs"
       - "scripts/verify-synthetic-windows-locks.mjs"
@@ -62,6 +63,8 @@ jobs:
           npm run build
       - name: Compare built MCP tool and OAuth compatibility with baseline
         run: node scripts/verify-legacy-mcp-compat.mjs legacy-base .
+      - name: Synthetic cross-version OAuth client refresh-token and owner-hash persistence
+        run: node scripts/verify-legacy-auth-continuity.mjs legacy-base .
 
   macos-control-regressions:
     runs-on: macos-latest
