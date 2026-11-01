@@ -1,5 +1,97 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — GOAL APP INTENT LOCK OWNERSHIP + 3-PROCESS RACE TEST
+
+**Owner instruction:** proceed as far as safely possible in one
+manual research turn, including authorized Codex inspection, GitHub
+source/test/CI/docs. This is NOT a real unattended ChatGPT rollover.
+Original installed 7979, isolated stage 7987, Windows Tasks and
+OAuth/client state remain UNCHANGED; PR #1 stays DRAFT/UNMERGED.
+
+**Previously pending CI now independently verified:**
+PR prior source HEAD
+`c9483eb98a4ecda67f72b512fe26bd78ea26d977`
+[Actions 41361268300](https://github.com/GBY0824/chatgpt2codex/actions/runs/41361268300)
+**COMPLETED SUCCESS Linux/Windows/macOS 3/3**. This includes the
+new four-deployed-script artifact/behavior-identity synthetic cutover
+fence from `321422388f6a48c6ae19e122e63afca65bfddc84`.
+The deployed watchdog still **differs** from the saved GitHub research
+script and actual relaunch modes remain unverified. No production
+cutover is approved.
+
+**New substantive source issue and fix:** the fork
+`src/server/goal-app-intent.ts` GOAL app-level intent lock was
+created exclusively with `wx` but its previous `finally` removed
+the lock pathname unconditionally. An external process changing or
+replacing the lock pathname while an authenticated GOAL intent
+transaction was active could cause deletion of a foreign lock.
+Candidate `withGoalIntentClaim` commit
+`dcd919facb08c4817bd578324fc1f4daa0815fed`
+now records a unique random nonce and file identity, verifies
+file type + saved content + `dev`/`ino` before unlink, and on any
+mismatch **does NOT remove the current lock** and instead reports
+`APP_GOAL_LOCK_OWNERSHIP_LOST`. Crash or stale marker stays
+fail-closed, manual owner recovery only. This remains a
+*best-effort userspace check+unlink*, not atomic OS
+unlink-by-handle. The older production MCP still does NOT honor
+this or candidate `oauth-write.lock`.
+
+New unit tests at `30ec36c6ab819587b4ef5d58d928276505034ebd`
+cover normal cleanup, changed nonce on same inode,
+different-inode replacement, missing marker and foreign-busy lock.
+**Honest failure lineage:** intermediate
+[Actions 41361809445](https://github.com/GBY0824/chatgpt2codex/actions/runs/41361809445)
+and
+[Actions 41361836196](https://github.com/GBY0824/chatgpt2codex/actions/runs/41361836196)
+FAILED Linux typecheck TS2322: async callback widened a narrowed
+`ON|OFF` input union to include `status`. Code
+`1bddc0b4cde3801342bdb989e329fc983fad4fa4`
+fixed it by creating a safely narrowed literal at the callback.
+[Actions 41361889807](https://github.com/GBY0824/chatgpt2codex/actions/runs/41361889807)
+**COMPLETED SUCCESS Linux/Windows/macOS 3/3**,
+including actual native Windows focused test/build.
+
+**New REAL INDEPENDENT NODE PROCESS, but SYNTHETIC STATE tests:**
+Source script `scripts/verify-goal-intent-cross-process.mjs`
+at `f02d615bfa660dd593383fb27773faa52e968a04`
+spawns 3 actual Node processes per round × 4 rounds, all
+attempting `ON` at expected revision 0 against disposable,
+random OS temp GOAL state. Exactly one ON may commit; two
+must be stale/busy. Another process must reject a stale marker
+without deleting it or creating a ledger. Fixture uses synthetic
+APP auth, not OAuth tokens, and absolutely **no real consumer
+CHAT auth/GOAL effect**. Workflow
+`5c2f392ee2c74ae180e1407805143b650e164e56`
+runs this after candidate build on Linux AND Windows.
+At first check [Actions 41362146220](https://github.com/GBY0824/chatgpt2codex/actions/runs/41362146220)
+had Linux independent process step SUCCESS while Windows
+had not yet reached that step; independently fetch latest job
+and final 3/3 before claiming full new test success.
+
+New documentation section
+`docs/GOAL_APP_AUTH_REVIEW.md` added at
+`38660eedffa3a482ae1f563caae3573b7351a196`
+and updated with actual child-process test at
+`a17a259d81e323fcf0701ffcbbe3b614d4b366e7`.
+Do not confuse this Source CI result with original owner installed
+`7979` code or stage migration.
+
+**Next safe action:** verify exact SHA `5c2f392...`
+Windows CI; if failure, diagnose step and add regression fix.
+Then inventory actual installed watchdog/launcher dispatch behavior
+only with independently permitted read-only provenance, respecting
+the previously **denied** detailed Windows AST request and
+never bypassing approval. Continue private OAuth issuer/state
+identity and reversible cutover planning without touching
+installation until separately approved. Original native
+consumer Project CHAT event/turn attestation and actual
+automatic successor creation remain UNAVAILABLE/UNPROVEN.
+Actual GOAL research executions **0** and unattended rollover
+**0/2** despite all synthetic tests.
+
+---
+
+
 ## 2026-11-02 KST — PRIORITY SHIFT: INSTALLED WATCHDOG DIFFERS FROM SAVED GITHUB SOURCE
 
 **This is a user-commanded CONTINUATION, not autonomous ChatGPT
