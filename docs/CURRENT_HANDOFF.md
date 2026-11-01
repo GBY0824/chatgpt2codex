@@ -1,5 +1,43 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — VERIFIED NEW INSPECTOR REPAIR CI / SAFE CURRENT RESUME
+
+**Actual source & CI, newly independently confirmed:**
+`3d1f34bd85f75a097b7c18fc208d01213873b457`,
+[Actions 41360030141](https://github.com/GBY0824/chatgpt2codex/actions/runs/41360030141)
+**COMPLETED SUCCESS 3/3** Linux, native Windows, macOS.
+Actual Windows job log contains
+`SYNTHETIC_WSCRIPT_EXECUTABLE_CLASSIFIER_CI_PASS`,
+`ONE_MCP_STARTUP_READONLY_INVENTORY_CI_PASS`,
+`SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS
+cases=42 negativeCases=40 positiveFixtures=2`, and
+`DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=3480`.
+This closes the earlier *source-editing* PowerShell parser regression
+seen in the accurately recorded FAILED runs 41359813513 /
+41359827171 / 41359905203. It is NOT evidence of live owner-PC
+rollover, production deployment or actual task stop/restart.
+
+New owner-PC **read-only** listener check independently confirmed
+**one listener each** at original port `7979` and isolated `7987`;
+no PC state, credentials, Windows Tasks or installed binaries changed.
+Do not run old v0.2.0 and new candidate against the same OAuth state.
+
+**Current next gate:** securely identify the actual installed
+watcher/launcher script provenance (file presence has been observed
+but content identity NOT read or proven), then classify independent
+relaunch routes and design owner-approved reversible quiescence.
+The saved GitHub research-source watchdog CAN invoke
+`Start-ScheduledTask` for missing/unhealthy old listener, but it
+has not been proven byte-identical to the deployed watcher. After
+explicit operating-system/credential-owner approval for live cutover,
+prove old OAuth continuity and original native Project CHAT event
+ingress. Actual GOAL research 0 and unattended rollovers 0/2.
+**No work continues outside a user-triggered turn without an
+actual automation/tool; this remains a manual GitHub handoff.**
+
+---
+
+
 ## 2026-11-02 ~07:40 KST — CONTINUED: MAIN TASK RELAUNCH FENCE + WINDOWS PARSER REPAIR
 
 **Follow-up user request was `이어서 진행해`. This is a manual next turn,
