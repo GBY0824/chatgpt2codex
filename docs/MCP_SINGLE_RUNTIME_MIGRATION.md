@@ -306,3 +306,33 @@ therefore NOT acceptable for single-MCP production replacement. No owner
 interaction, hidden path probing or token transfer was performed for
 this gate. A separate owner-approved preflight against a **new** verified
 bundle is required before a real cutover.
+
+## Full manifest + externally pinned source (hardening)
+
+The earlier read-only readiness gate checked only three critical manifest
+entries and returned `fullBundleManifestVerified:false`. It now scans
+**every staged file including hidden files**, verifies each SHA-256 against
+`SHA256SUMS.txt`, rejects unmanifested extra files, missing files, duplicate
+manifest entries and `..`/absolute/backslash/colon traversal paths. It
+also rejects reparse points in the selected install/candidate path chain
+and staged tree, so aliases to production are not quietly accepted.
+
+The optional `-ExpectedSourceSha` argument is an **external trust pin**.
+Without a valid 40-hex SHA, or if it does not equal the candidate's
+`sourcePrHeadSha`, `candidatePassesReadOnlyIntegrityGates` is always
+false. Matching both the full manifest and supplied pin merely supplies
+a **read-only integrity assessment**, never production cutover consent or a
+publisher signature. The old 0.2.0 version collision remains a report
+warning rather than being treated as build identity.
+
+On the GitHub-hosted Windows CI, the positive case uses the actual PR
+source SHA and CI-produced staged package. Negative cases require
+refusal for an omitted/wrong source SHA, an older candidate missing
+provenance, an extra hidden file, a modified noncritical README file and
+overlapping installed/candidate directory inputs. This detects real
+problems missed by a critical-files-only verifier, while leaving the
+owner's 7979 service untouched.
+
+A source SHA and editable hash manifest are not code-signing: before
+real deployment, separately establish which GitHub publisher/source
+and distribution channel the owner actually trusts.
