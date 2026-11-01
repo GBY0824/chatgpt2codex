@@ -135,6 +135,10 @@ jobs:
                 -not $observed.processObserved -or
                 @($observed.processAncestryBasenames).Count -lt 1 -or
                 $observed.startupCandidateProvenLauncher -or
+                $observed.identifiedOwnerScheduledTask -or
+                $observed.taskActionArgumentsRead -or
+                $observed.matchingScheduledTaskCount -lt 0 -or
+                $observed.readyWscriptTaskCandidateCount -lt 0 -or
                 $observed.automaticStartupMechanismIdentified -or
                 $observed.fullProcessCommandLineRead -or
                 $observed.credentialsRead -or
