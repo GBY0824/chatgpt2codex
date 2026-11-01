@@ -442,3 +442,73 @@ state owners, close processes safely, prove Windows installer ownership,
 test handoff/rollback with authentic clients, and obtain explicit owner
 authorization for any real port 7979 replacement. A program-only backup
 **never authorizes** the actual cutover.
+
+## Legacy OAuth continuity and migration — source and synthetic gate
+
+**Proven source identity:** the actual fork `main` and draft candidate have
+the exact same Git blob SHAs for `src/auth/oauth-store.ts` (495445cf),
+`src/auth/owner-token.ts` (73c6e3fe), `src/auth/oauth-provider.ts`
+(ce8b859f), `src/state/store.ts` (80317f90) and
+`src/state/ledger.ts` (341c999b). This is strong source-level evidence
+that the persisted OAuth `oauth.json` and `owner-token.json` schemas,
+client registry, refresh-token rotation and core session state were not
+rewritten in the fork. It does NOT establish real client reconnection.
+
+**Synthetic cross-version proof:** `scripts/verify-legacy-auth-continuity.mjs`
+is run as a separate CI test after building *both* fork main and candidate.
+It creates its own random temporary state, registers a fake client using
+baseline code, stores synthetic basic-scope access/refresh token hashes,
+and stores a fake owner-token hash. A fresh candidate instance must
+read that client and tokens without modifying their bytes, accept the
+synthetic owner token, reject a wrong value, preserve basic-only
+scopes (never silently add `chatgpt2codex.goal`), rotate the synthetic
+refresh token one time, and prove the baseline can read the new
+basic-scope refresh token. This test shares no real user credentials,
+client IDs or tokens.
+
+**New conservative privacy-minimal gate:**
+`scripts/inspect-oauth-state-readonly.mjs` takes an explicit absolute
+state directory and a separately pinned MCP resource URL.
+It reads only `oauth.json` and `owner-token.json`, returns *booleans and
+status codes only*, and never prints client IDs, token hashes, token
+values, redirect URLs, secret paths or source content. It rejects
+missing/malformed records, missing or duplicate client references,
+inconsistent resource URLs, invalid path inputs or symbolic link
+aliases. It does not call `init`, rotate a token, register clients,
+issue permissions, persist any data or authenticate a real ChatGPT turn.
+Synthetic CI exercises positive, wrong resource and corrupted store
+cases. This is **not** a user-authorized probe of the real state folder;
+no owner Windows credentials are read by CI.
+
+**Critical lifecycle rules for future cutover:**
+
+- Keep production's existing state directory and the exact OAuth
+  issuer/public MCP resource URL; a changed issuer/resource may make
+  existing tokens unusable despite identical JSON serialization.
+- Do **not** run `chatgpt2codex init` as an upgrade step: it rewrites
+  project registry and active session. Do **not** run
+  `owner-token --generate` or `owner-token --set-stdin`, since
+  those actions deliberately clear all OAuth client/token registrations.
+- Never run old 7979 and new 7979 simultaneously against the same OAuth
+  store; the JSON store serializes writes within one process instance
+  but does not provide an interprocess distributed write lock. Shut
+  down the old writer using the **verified lifecycle owner** first.
+  The isolated 7987 staging service must keep its **separate state**.
+- Existing basic-scope tokens may continue to authorize *legacy* MCP
+  operations if valid, not expired, not revoked, and the resource/issuer
+  and client remain unchanged. **GOAL remains an opt-in additional
+  scope** and requires separate explicit owner approval/re-consent.
+  Compatibility is not an assurance that any particular hosted ChatGPT
+  client will reconnect automatically.
+- Do not put a real `oauth.json`, `owner-token.json`, decrypted
+  credentials, hashes of stored tokens or backup receipts into GitHub,
+  chat, a public CI artifact or staging test fixture. A separate
+  owner-approved private credential/state backup and lifecycle inventory
+  are required before any actual 7979 cutover.
+
+**Remaining proof:** owner-authorized read-only original startup mechanism,
+exact production issuer/resource and state-path identity, existing ChatGPT
+client reconnection before/after a *separately approved reversible
+cutover*, GOAL consent for additional scope, and the original ordinary
+consumer ChatGPT Project CHAT provider-turn attestation + two rollovers.
+The last target remains **0/2** until live evidence exists.
