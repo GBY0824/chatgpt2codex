@@ -116,6 +116,19 @@ export function isVerifiedOAuthWriterContention(
 }
 
 /**
+ * Windows may temporarily reject an exclusive file creation with EPERM or
+ * EACCES even when the path is not yet observable. Retrying the SAME atomic
+ * wx open is safe; it never creates a writer claim without OS exclusivity.
+ * An unverified path must NEVER be classified as another writer's lock.
+ * Repeated unverified denial ultimately remains an I/O failure, not success.
+ */
+export function isRetryableWindowsOAuthOpenDenial(
+  errno: string | undefined, platform: NodeJS.Platform,
+): boolean {
+  return platform === "win32" && (errno === "EPERM" || errno === "EACCES");
+}
+
+/**
  * JSON-file backed OAuth store: registered clients + access/refresh tokens.
  * All mutating operations are serialized through an in-process mutex so
  * concurrent tool/HTTP handlers never interleave a read-modify-write cycle
@@ -164,12 +177,20 @@ export class JsonOAuthStore {
             // No verified existing regular lock: preserve the I/O failure.
           }
         }
-        if (!isVerifiedOAuthWriterContention(errno, process.platform, fileObserved)) {
+        const knownBusy = isVerifiedOAuthWriterContention(errno, process.platform, fileObserved);
+        const windowsTransient = isRetryableWindowsOAuthOpenDenial(errno, process.platform);
+        if (!knownBusy && !windowsTransient) {
           throw new Error("OAUTH_WRITE_LOCK_IO_FAILED", { cause: error });
         }
         if (Date.now() >= deadline) {
+          // Only a *verified* existing claim can be called busy/stale.
+          // A missing/unreadable Windows path with persistent EPERM/EACCES
+          // is still a real I/O failure, never proof of lock ownership.
+          if (!knownBusy) throw new Error("OAUTH_WRITE_LOCK_IO_FAILED", { cause: error });
           throw new Error("OAUTH_WRITE_LOCK_BUSY_OR_STALE");
         }
+        // Re-attempt OS-enforced exclusive wx creation; no read/modify/write
+        // transaction can run before that atomic acquisition succeeds.
         await new Promise<void>((resolve) => setTimeout(resolve, 50));
       }
     }
