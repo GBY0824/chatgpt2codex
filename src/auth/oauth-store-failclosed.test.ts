@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { JsonOAuthStore, hashToken, isVerifiedOAuthWriterContention, isRetryableWindowsOAuthOpenDenial } from "./oauth-store.js";
+import { JsonOAuthStore, hashToken, isVerifiedOAuthWriterContention, isRetryableWindowsOAuthOpenDenial, decideOAuthExclusiveOpenFailure } from "./oauth-store.js";
 
 const REDIRECT = "http://127.0.0.1:49173/callback";
 const basicClient = {
@@ -56,6 +56,33 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
     }
     for (const errno of ["EEXIST", "EIO", "ENOENT", "ENOSPC", "EROFS", undefined]) {
       expect(isRetryableWindowsOAuthOpenDenial(errno, "win32")).toBe(false);
+    }
+  });
+
+  it("exercises actual bounded exclusive-open retry decisions including deadline and unverified Windows EPERM", () => {
+    // A real EPERM was observed in Windows CI. These cases simulate exact
+    // errno/ownership/deadline inputs, not merely positive classifier flags.
+    const cases: Array<[string | undefined, NodeJS.Platform, boolean, boolean, string]> = [
+      ["EPERM", "win32", false, false, "retry"],
+      ["EPERM", "win32", false, true, "io-failed"],
+      ["EACCES", "win32", false, false, "retry"],
+      ["EACCES", "win32", false, true, "io-failed"],
+      ["EPERM", "win32", true, false, "retry"],
+      ["EPERM", "win32", true, true, "busy"],
+      ["EACCES", "win32", true, true, "busy"],
+      ["EEXIST", "win32", false, false, "retry"],
+      ["EEXIST", "win32", false, true, "busy"],
+      ["EEXIST", "linux", false, true, "busy"],
+      ["EPERM", "linux", true, false, "io-failed"],
+      ["EACCES", "darwin", true, false, "io-failed"],
+      ["EIO", "win32", true, false, "io-failed"],
+      ["ENOENT", "win32", false, false, "io-failed"],
+      ["EROFS", "win32", true, true, "io-failed"],
+      [undefined, "win32", true, false, "io-failed"],
+    ];
+    for (const [errno, platform, observed, expired, expected] of cases) {
+      expect(decideOAuthExclusiveOpenFailure(errno, platform, observed, expired))
+        .toBe(expected);
     }
   });
 
