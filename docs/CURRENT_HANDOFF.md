@@ -1,5 +1,62 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — VERIFIED LATEST OAUTH WINDOWS EPERM RETRY SOURCE CI 3/3
+
+**Exact independently verified latest source + unit tests SHA:**
+`aeac9dc927bb1d80975f4ebe41e15c95ba0effaa`,
+[GitHub Actions 41366873885](https://github.com/GBY0824/chatgpt2codex/actions/runs/41366873885)
+**COMPLETED SUCCESS 3/3** (Linux, hosted native Windows,
+macOS). Read real Windows job logs:
+`SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS
+cases=50 negativeCases=48 positiveFixtures=2`;
+`SYNTHETIC_GOAL_CROSS_PROCESS_INTENT_EXCLUSION_PASS`
+12 child processes / 4 synthetic ON wins / 9 denied;
+`SYNTHETIC_OAUTH_CROSS_PROCESS_WRITER_EXCLUSION_PASS`
+4 distinct synthetic rounds, 3 actual Node writers per
+round, 24 mock clients retained per round, one foreign
+lock refused; and Windows isolated archive
+`DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=3480`.
+No production code was installed or exercised.
+
+**Caution despite success:** exact source run
+`25292373...` / Windows job
+[41366400794](https://github.com/GBY0824/chatgpt2codex/actions/runs/41366400794)
+FAILED with sanitized `errno=EPERM:reason=LOCK_IO_FAILED`
+in a previous concurrent test; a later green cannot
+mathematically exclude further rare Windows errors.
+Source `c6a58dcc...` only permits a bounded 5-second
+repetition of the SAME OS-exclusive `wx` open on
+Win32 EPERM/EACCES without interpreting unknown lock
+as owned. On persistent unverified error it still
+raises IO_FAILED, never silently grants access.
+Keep diagnostic and four-round regression checks.
+
+OpenAI [official MCP Events documentation](https://developers.openai.com/plugins/build/mcp-events)
+currently specifies Work chats and dots for events,
+not normal consumer ChatGPT Project chat limit
+notifications or creation of its native successor;
+`_meta["openai/session"]` is tool-call correlation
+only per [plugin reference](https://developers.openai.com/plugins/reference).
+Do not silently substitute Work or API `/conversations`
+for user's ordinary CHAT 2/2 success contract.
+Provider-attested ordinary CHAT limit/turn and successor
+creation remain missing. The historical deployed
+watchdog bytes differ from saved GitHub research source.
+Original Windows 7979 and separate stage 7987,
+Windows Scheduled Tasks, existing OAuth and Chrome
+remain untouched. PR #1 DRAFT UNMERGED.
+**Actual GOAL research executions 0, unattended CHAT rollover 0/2.**
+
+**Next safe action:** read back latest HEAD after this
+docs commit, assess whether official ordinary consumer
+CHAT attestor becomes available, and continue privately
+approved deployed-script provenance/rollback design.
+No live task disable, OAuth rotation, installer execution,
+GOAL dispatch or rollover proof without explicit authority.
+
+---
+
+
 ## 2026-11-02 KST — OFFICIAL OPENAI MCP EVENT SCOPE AND SECOND WINDOWS RETRY
 
 **Current official developer documentation independently reviewed:**
