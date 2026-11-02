@@ -229,7 +229,7 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
   // pre-existing OAuth state; isolated disposable review remains separate.
   const processHostKeys = [
     "goal-process-executable", "goal-process-script", "goal-process-script-sha256",
-    "goal-process-key-file",
+    "goal-process-key-file", "goal-engine-state-file",
   ] as const;
   const processHostRequested = processHostKeys.some((key) => flags[key] !== undefined);
   if (processHostRequested) {
@@ -259,6 +259,7 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
       script: flags["goal-process-script"] as string,
       scriptSha256: flags["goal-process-script-sha256"] as string,
       bridgeKeyFile: flags["goal-process-key-file"] as string,
+      engineStateFile: flags["goal-engine-state-file"] as string,
     }) : undefined;
   const ctx = await buildToolContext(workspace, stateDir);
   // Read-only Stage and process host are mutually exclusive.
