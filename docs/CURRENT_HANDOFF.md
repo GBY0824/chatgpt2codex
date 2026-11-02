@@ -1,5 +1,57 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — OFFLINE WINDOWS STAGE NOW INCLUDES READ-ONLY PRIVATE COMPARATOR
+
+After the new private baseline/candidate OAuth comparison
+source and synthetic Linux/Windows tests were implemented,
+CI packaging at commit
+`f27988af4467f9c4b73e221f5c9b72ee2517bbd5`
+now copies `compare-oauth-state-readonly.mjs` to
+the Windows **uninstalled review-only bundle** and
+includes it in the generated complete SHA256 manifest.
+Its STAGING_README explicitly states that structural
+snapshot match is NOT live quiescence, owner
+authorization or ChatGPT reauth, and prohibits
+accessing real owner OAuth files without separate
+approval. No Windows owner files or production
+tasks were changed.
+
+New CI [Actions 41387019203](https://github.com/GBY0824/chatgpt2codex/actions/runs/41387019203)
+for this exact packaging source SHA was IN PROGRESS
+at initial check; verify final Linux/Windows/macOS
+and new archive file count before claiming packaging
+pass. Underlying comparator+test source SHA
+`ac23e54734ce13bdc60e7a22c55b5c34f6608e26`
+[Actions 41386669956](https://github.com/GBY0824/chatgpt2codex/actions/runs/41386669956)
+already had Linux/macOS completed SUCCESS and
+native Windows comparison step SUCCESS, but final
+Windows offline bundle SHA round-trip remained
+in progress at initial check.
+
+The signed-off previous source baseline remains
+`0e9001bcbc6ebf3fbe9e3edbaefd460b36c785ec`
+[CI 41385549504](https://github.com/GBY0824/chatgpt2codex/actions/runs/41385549504)
+SUCCESS 3/3.
+
+**No owner private snapshot was read**; the
+comparison's utility must still be run privately
+with two independently obtained, frozen,
+owner-approved OAuth state copies.
+`oldWriterQuiescenceVerified=false` and
+`productionCutoverAuthorized=false` even when
+the records match. Installed old v0.2.0, 7979,
+isolated 7987, Windows supervisors and OAuth
+state remain unchanged. Ordinary ChatGPT
+Project CHAT unattended rollover 0/2;
+actual research GOAL effects 0. PR #1 DRAFT
+UNMERGED. Next owner-safe step is exact
+installed-script restart path attestation
+and approved private OAuth snapshot; never
+override previously denied AST inspection.
+
+---
+
+
 ## 2026-11-02 KST — PRIVATE ORIGINAL/CANDIDATE OAuth STATE COMPARISON IMPLEMENTED
 
 **User requested next stage**; manual continuation only,
