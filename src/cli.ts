@@ -201,6 +201,13 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
       throw new Error("ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED");
     }
   }
+  // An upgraded owner installation MUST prove the prior OAuth file still
+  // exists and parses before any project/session/ledger writes or socket bind.
+  // Never enable this for initial OAuth enrollment or isolated fresh stages.
+  const requireExistingOAuthState = flags["require-existing-oauth-state"] === true;
+  if (requireExistingOAuthState) {
+    await new JsonOAuthStore(stateDir, true).assertReadable();
+  }
   const ctx = await buildToolContext(workspace, stateDir);
 
   if (!(await hasOwnerToken(ctx.stateDir))) {
@@ -241,6 +248,7 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
     host,
     port,
     publicUrl,
+    requireExistingOAuthState,
     idleShutdownMs,
     onIdleTimeout: () => {
       console.error("chatgpt2codex serve --http: idle timeout reached; stopping.");
