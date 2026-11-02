@@ -204,19 +204,25 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
   // An upgraded owner installation MUST prove the prior OAuth file still
   // exists and parses before any project/session/ledger writes or socket bind.
   // Never enable this for initial OAuth enrollment or isolated fresh stages.
+  if (flags["require-existing-oauth-state"] !== undefined &&
+      flags["require-existing-oauth-state"] !== true) {
+    throw new Error("REQUIRE_EXISTING_OAUTH_FLAG_MUST_BE_BOOLEAN");
+  }
   const requireExistingOAuthState = flags["require-existing-oauth-state"] === true;
   if (requireExistingOAuthState) {
     await new JsonOAuthStore(stateDir, true).assertReadable();
   }
-  const ctx = await buildToolContext(workspace, stateDir);
-
-  if (!(await hasOwnerToken(ctx.stateDir))) {
+  // Do not mutate the registry/ledger merely because a server without its
+  // owner token was started. A required pre-existing OAuth document is checked
+  // FIRST, then the existing owner token, only then the project state.
+  if (!(await hasOwnerToken(stateDir))) {
     console.error(
       "chatgpt2codex serve --http: no owner token found. Run `chatgpt2codex init` first to generate one.",
     );
     process.exitCode = 1;
     return;
   }
+  const ctx = await buildToolContext(workspace, stateDir);
 
   const port = typeof flags.port === "string" ? Number.parseInt(flags.port, 10) : 7979;
   const host = typeof flags.host === "string" ? flags.host : "127.0.0.1";
@@ -280,6 +286,9 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
 }
 
 async function cmdServe(flags: Record<string, string | boolean>): Promise<void> {
+  if (!flags.http && flags["require-existing-oauth-state"] !== undefined) {
+    throw new Error("REQUIRE_EXISTING_OAUTH_REQUIRES_HTTP");
+  }
   if (flags.http) {
     await cmdServeHttp(flags);
     return;
@@ -635,7 +644,7 @@ async function main(): Promise<void> {
       break;
     default:
       console.error(
-        "usage: chatgpt2codex <serve|init|doctor|owner-token|control> [--workspace <path>] [--isolated-state-dir <absolute-separate-path>] [--active-project-root <path>] [--stdio | --http [--port 7979] [--public-url <origin>]]",
+        "usage: chatgpt2codex <serve|init|doctor|owner-token|control> [--workspace <path>] [--isolated-state-dir <absolute-separate-path>] [--active-project-root <path>] [--stdio | --http [--port 7979] [--public-url <origin>] [--require-existing-oauth-state]]",
       );
       process.exitCode = 1;
   }
