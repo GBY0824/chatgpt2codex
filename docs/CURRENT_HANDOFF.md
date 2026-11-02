@@ -1,5 +1,66 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — INTERMITTENT WINDOWS EPERM STILL OBSERVED; BOUNDED RETRY REPAIR UNDER CI
+
+**Corrective evidence after earlier 3/3 green:** exact source
+`25292373d79022bd8b4ded5883df2837d09f3a71`
+[Actions 41366400794](https://github.com/GBY0824/chatgpt2codex/actions/runs/41366400794)
+**COMPLETED FAILURE** native Windows, despite successful Linux
+source and macOS jobs. The Windows failure again occurred during
+independently spawned synthetic OAuth client writers, but the new
+sanitized test diagnostic now proves
+`SYNTHETIC_WRITER_EXIT_1:errno=EPERM:reason=LOCK_IO_FAILED`.
+Thus the *previous* limited retry fix did not fully eliminate the
+intermittent Windows issue. An EPERM was received when the open
+attempt had NOT independently verified a regular lock pathname.
+Earlier 3/3 successful runs do not make this failure disappear.
+
+**Source-only second refinement:**
+`src/auth/oauth-store.ts` commit
+`c6a58dcc445612eaeb741e771426765051af104f`
+separates two concepts:
+(1) a **verified** competing writer lock (EEXIST or
+Windows EPERM/EACCES where an existing ordinary file is
+positively seen), and
+(2) Windows EPERM/EACCES from `open(path, 'wx')` when a
+competing file cannot be observed.
+Both can retry the **same OS-enforced atomic exclusive
+open** under the original <=5s deadline, but (2) is NEVER
+reported as verified lock ownership and **MUST fail as
+`OAUTH_WRITE_LOCK_IO_FAILED` on deadline** rather than
+fabricating `BUSY_OR_STALE`. Nothing writes state until
+`wx` actually succeeds, and no foreign claim is removed.
+Other OS errors and non-Windows EPERM/EACCES continue
+to fail immediately. Pure regression classification cases
+committed `aeac9dc927bb1d80975f4ebe41e15c95ba0effaa`.
+Corresponding
+[Actions 41366873885](https://github.com/GBY0824/chatgpt2codex/actions/runs/41366873885)
+was in progress at initial note: verify actual native Windows
+cross-process and artifact final result. Continue retaining
+sanitized errno-only failure receipts; do not label flaky
+Windows behavior resolved based on a single successful run.
+
+**Earlier good CI unaffected:** source/test
+`39bebe89c63b837c61a32b6bf2a9b616aaca8332`
+[Actions 41366425924](https://github.com/GBY0824/chatgpt2codex/actions/runs/41366425924)
+**COMPLETED 3/3 SUCCESS** with GOAL OFF-fence fail-closed
+and 4-round synthetic OAuth writer tests. But the
+separate FAILED 41366400794 proves intermittent EPERM
+could recur; both facts are preserved.
+
+The user's original and isolated Windows 7979/7987,
+Task Scheduler, Startup, OAuth issuers, tokens and
+consumer ChatGPT Project chat were not touched.
+GOAL's real research cycles **0**, genuine unattended
+same-Project rollover **0/2**. The installed watchdog
+remains different from saved GitHub source, and a
+separately owner-approved reversible single-writer
+cutover and genuine provider-attested ChatGPT consumer
+event/successor remain missing. PR #1 draft, no merge.
+
+---
+
+
 ## 2026-11-02 KST — INDEPENDENT 3/3 VERIFIED CURRENT SOURCE (OAUTH + OFF FENCE)
 
 **New latest VERIFIABLE code/test source SHA:**
