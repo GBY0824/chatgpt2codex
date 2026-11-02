@@ -87,7 +87,13 @@ try {
     t.scopes.includes('chatgpt2codex') && t.resource===resourcePin);
   const goalPresent=allTokens.some(t=>t.scopes.includes('chatgpt2codex.goal'));
   const structural=uniqueClients&&uniqueTokens&&allTokenClientsValid;
-  const code=structural&&allResourcesMatch?'AUTH_STATE_READONLY_STRUCTURAL_GATE_PASS':
+  // A syntactically valid blank OAuth JSON is not evidence of an existing
+  // ChatGPT client registration. Align the privacy-safe READ-ONLY report
+  // with the candidate --require-existing-oauth-state cold-start fence.
+  // This is a *necessary*, not sufficient, continuity check: actual client
+  // IDs, expected issuer and backups must still be pinned privately.
+  const code=oauth.clients.length===0?'AUTH_STATE_READONLY_NO_REGISTERED_CLIENTS':
+    structural&&allResourcesMatch?'AUTH_STATE_READONLY_STRUCTURAL_GATE_PASS':
     'AUTH_STATE_READONLY_MIGRATION_GATE_BLOCKED';
   result(code,{
     ownerTokenRecordValid:true,oauthDocumentValid:!!structural,
