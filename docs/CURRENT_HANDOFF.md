@@ -1,5 +1,126 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — NEXT REAL MIGRATION BLOCKER: NONEMPTY IS NECESSARY BUT NOT SUFFICIENT
+
+**Owner-requested manual continuation**, not unattended ChatGPT
+Project rollover. Fork `GBY0824/chatgpt2codex` branch
+`goal-app-auth-review-20261101`, PR #1 remains
+DRAFT/UNMERGED. **Real GOAL research cycles 0; genuine
+unattended ordinary Project CHAT rollover 0/2.**
+
+**Starting point independently verified:** prior HEAD
+`966cdff7c2dceaedd81bc8ed0a16a2d27f97bd4d`
+[Actions 41369530197](https://github.com/GBY0824/chatgpt2codex/actions/runs/41369530197)
+**COMPLETED SUCCESS 3/3 Linux/Windows/macOS**.
+
+**New fixed defect (candidate code only):**
+`--require-existing-oauth-state` previously required
+the original `oauth.json` pathname plus valid JSON,
+but *a syntactically valid file with `clients: []`*
+could still pass, silently breaking continuity of
+the registered ChatGPT OAuth clients after restart.
+`src/auth/oauth-store.ts` commit
+`79d0f555817fa407f4c3108893bce86f6feac93a`
+now rejects **zero registered clients** with
+`OAUTH_REQUIRED_CLIENT_REGISTRATIONS_MISSING` when
+the migration flag is true. New clean first enrollment
+without migration flag is still permitted.
+`src/auth/oauth-store-failclosed.test.ts`
+`e3be66509cd5cb5bdc252c3cd5e409e2e59a8392`
+covers fresh-vs-migration difference, write refusal
+and byte preservation. The REAL compiled CLI test
+`scripts/verify-required-existing-oauth-startup.mjs`
+`65ce55c31ab61ca4444c5416041f48df44826476`
+now includes valid empty JSON rejection prior to
+owner-token inquiry or any HTTP bind.
+[Actions 41384713762](https://github.com/GBY0824/chatgpt2codex/actions/runs/41384713762)
+for exact SHA `65ce55c31...` independently
+**COMPLETED SUCCESS 3/3**, including native Windows
+`emptyClientRegistrationsRejected:true`,
+4-round OAuth writer concurrency and all 3,480
+staging bundle files validated.
+**Transparent earlier interim test failures:**
+`41384649020` and `41384673512`
+were due to the *old* synthetic CLI fixture expecting
+a missing-owner-token rejection for an EMPTY registered-client
+set. The newer, stronger rejection intentionally
+happens earlier; the fixture was updated.
+
+**Read-only diagnostic aligned with new safety requirement:**
+`scripts/inspect-oauth-state-readonly.mjs` commit
+`d3b9e609409da52c23c0a2f074a749eea1676f75`
+returns `AUTH_STATE_READONLY_NO_REGISTERED_CLIENTS`
+instead of falsely passing a valid empty client set.
+Disposable source fixture
+`scripts/verify-oauth-readonly-migration-clients.mjs`
+`4d3c8530cc7f942b2a13c37ab1bbad7d07e41784`
+uses a fake owner marker and OAuth JSON to ensure
+empty clients blocked, nonempty client structurally
+accepted, foreign resource rejected, client IDs
+self-inconsistent refused, **zero actual owner
+identifiers printed or inspected**. Linux and
+native Windows workflow steps inserted at
+`f4eb909f295d0d5f963a611dd7da16067be35c39`.
+
+**Final source-only cutover contract strengthened:**
+`scripts/verify-synthetic-supervisor-quiescence.mjs`
+commit `7f16c85c040f870b88a4be2cfc6429743412ddc5`
+requires at least one registered candidate client
+AND explicit **private old/new client-ID SET
+continuity proof**, not merely a nonempty document,
+as well as previous issuer identity, backup,
+single-writer quiescence, script provenance and
+owner approvals. New missing/zero and false/string
+negative cases. Positive fixture facts are SYNTHETIC
+and **NOT** real owner client data.
+
+**New real Windows read-only supervisor STATUS ONLY:**
+- Original 7979 one listener; isolated 7987 one.
+- Main `ChatGPT To Codex MCP - Tailscale`: Running,
+  1 enabled trigger, RestartCount 5, PT1M, IgnoreNew.
+- `ChatGPTToCodexEmergent-Watchdog`: Ready, 2
+  enabled triggers, one task action, IgnoreNew.
+- `ChatGPTToCodexMcpSelfHealing`: Ready, 2
+  enabled triggers, one task action, IgnoreNew.
+- `ChatGPTToCodexOAuthGuard`: task Disabled, two
+  configured enabled triggers (not evidence it can run
+  while disabled), one action, IgnoreNew.
+Only metadata: no task command-line arguments,
+script contents, OAuth tokens or credentials read;
+all tasks/settings unchanged. The disabled
+guard is NOT an active route, but main/watchdogs
+still need separate control-flow proof.
+Previous connector-denied full AST inventory
+was NOT attempted again or bypassed.
+
+**Latest code CI:** exact source commit
+`7f16c85c040f870b88a4be2cfc6429743412ddc5`,
+[Actions 41385129390](https://github.com/GBY0824/chatgpt2codex/actions/runs/41385129390):
+Linux/macOS jobs SUCCESS and Windows specific new
+read-only client and revised supervisor-gate
+steps SUCCESS when initially observed. Windows
+full downloadable artifact round-trip was
+still IN PROGRESS. Do not claim latest
+source 3/3 until all job results are complete.
+Related source + native fixture
+[41385052529](https://github.com/GBY0824/chatgpt2codex/actions/runs/41385052529)
+similarly had Linux/macOS success and Windows pending.
+
+**Remaining exact gates:** actual installed Windows watcher
+differs from saved GitHub research script; live relaunch
+modes of launcher/WScript/Startup not fully attested.
+No private owner client-ID set/issuer comparison or
+OAuth state backup, no single-writer reversible
+old-v0.2.0 cutover approval, and no provider-attested
+normal ChatGPT Project CHAT context-limit/successor
+or Goal P3 executor proof. No production operation,
+token/client/installer/task modification, no
+old-and-new shared OAuth state. A source-only
+test PASS is never a real rollover success.
+
+---
+
+
 ## 2026-11-02 KST — FULL 3/3 VERIFICATION CLOSED: EXISTING OAUTH COLD-START FENCE
 
 **Latest exactly verified substantive code+CI SHA**
