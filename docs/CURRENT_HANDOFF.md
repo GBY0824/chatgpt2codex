@@ -1,5 +1,110 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — NEXT PHASE: RESTART-PROOF EXISTING OAUTH PRE-FLIGHT (SOURCE ONLY)
+
+**User-directed manual continuation** of a single-original-MCP
+migration. Fork `GBY0824/chatgpt2codex` branch
+`goal-app-auth-review-20261101`, PR #1 still DRAFT/UNMERGED.
+Production original Windows 7979, isolated candidate 7987,
+Task Scheduler, OAuth tokens/registered clients, Chrome and
+Project CHAT remain **UNTAMPERED**. This is NOT a live cutover
+or an unattended normal ChatGPT Project chat rollover.
+
+**New practical migration blocker fixed in source only:**
+A same-process `JsonOAuthStore` memory bit cannot detect
+that `oauth.json` disappeared **after a full process restart**.
+Without a hard migration startup gate, a new candidate might
+treat the missing previously registered clients/refresh tokens
+as a fresh empty OAuth enrollment and silently replace them
+on the first write. Candidate source changes:
+
+- `src/auth/oauth-store.ts` commit `e2fda7d16d61a97165ce2f0f9ad206d15a37f1ae`:
+  opt-in `new JsonOAuthStore(stateDir, true)` denies
+  even initially absent `oauth.json` with
+  `OAUTH_STORE_READ_FAILED`. Existing malformed,
+  symlink/non-file state remains denied. Default `false`
+  preserves truly fresh first-time setup.
+- `src/auth/oauth-provider.ts` `c78ee227...` and
+  `src/server/http.ts` `b2672a2b...` carry
+  `requireExistingOAuthState` to every HTTP
+  OAuth provider action, not solely initial check.
+- `src/cli.ts` `22d5b62d...`, hardened
+  `bac85c98357ab2d5cc167e7957b2d9817d669021`:
+  opt-in `--require-existing-oauth-state` first
+  checks persisted OAuth JSON BEFORE project/ledger
+  writes or HTTP socket bind. It rejects `--stdio`
+  misuse and string argument `false` rather than
+  silently falling back. A missing owner token now
+  refuses before project state initialization as well.
+  **DO NOT add this flag to the installed owner
+  command until the owner separately approves cutover
+  and private OAuth state backup has been verified.**
+- Disposable test fixture `src/auth/oauth-store-failclosed.test.ts`
+  `cf3d5f160eda8c79a46bf7adb4b24e54a47b754b`:
+  first missing state refusal, reset-after-restart
+  denial, registered-client and synthetic refresh-token
+  byte-restoration continuity.
+- Actual compiled isolated HTTP CLI regression
+  `scripts/verify-required-existing-oauth-startup.mjs`
+  `916fa10ce8c78ec1d351a8f8d7a1ddf22068e5fe`
+  spawns real child CLI on Linux and Windows,
+  verifies missing OAuth refuses BEFORE any directory
+  or listener, malformed flag and stdio opt-in denied,
+  ordinary fresh enrollment remains available,
+  and valid fake OAuth alone is insufficient when
+  owner token is absent. No owner system accessed.
+  CI wired at `e0175195ca62ee2937fa4d32ef7ff585c8dcfe74`.
+- `scripts/verify-synthetic-supervisor-quiescence.mjs`
+  `135903a0eb6e750e38b76112cd69ee8b533a87e6`
+  requires `candidateRequiresExistingOAuthState === true`
+  for any cutover plan, including missing/false/string
+  negative cases. Synthetic fixture values do NOT
+  prove a real Startup or Scheduled Task command
+  actually includes the flag.
+- **Transparent CI failure/repair:** intermediate
+  [Actions 41368938671](https://github.com/GBY0824/chatgpt2codex/actions/runs/41368938671)
+  and `41368999340` had Windows job FAILURE because
+  an older isolated CLI smoke expected staging state
+  initialization BEFORE the missing owner token was
+  rejected. The new safer behavior intentionally
+  forbids that write. Workflow fix
+  `40a1090ecae767a31390fdf63be4a02a0c452ed1`
+  changes the smoke to require **NO state directory**
+  after missing-owner-token refusal instead.
+  This is a stricter safety assertion, not suppressed
+  test execution.
+
+**Verification at first checkpoint:**
+[Actions 41369156870](https://github.com/GBY0824/chatgpt2codex/actions/runs/41369156870)
+for exact source + workflow SHA `40a1090e...`:
+Linux source and macOS controls **SUCCESS**;
+Windows real compiled CLI missing-OAuth preflight,
+GOAL/OAuth writer and updated isolated-stage smoke
+steps separately **SUCCESS**, final Windows offline
+artifact verification **IN PROGRESS**. Verify all
+3 job statuses and logs before asserting final PASS.
+Prior baseline source `dfed328...` [41367840079](https://github.com/GBY0824/chatgpt2codex/actions/runs/41367840079)
+was independently **COMPLETED SUCCESS 3/3**.
+
+**Actual blocker remains:** original old installed v0.2.0
+ignores candidate `oauth-write.lock`; require privately
+pinned OAuth issuer/client identity and verified snapshot,
+full installed watchdog/launcher/WScript/Startup
+provenance (installed watcher differs from GitHub
+research version), owner-approved reversible and truly
+single-writer quiescence, and active real command
+attestation for `--require-existing-oauth-state`.
+Official ordinary consumer ChatGPT Project CHAT
+context-limit notification, original provider-attested
+turn and exact native same-Project successor creation
+remain UNPROVEN/UNAVAILABLE via this MCP.
+No fake Work/dots/API acceptance, no Chrome effect,
+and no GOAL execution authority from app ON alone.
+Actual GOAL work 0; genuine unattended rollovers 0/2.
+
+---
+
+
 ## 2026-11-02 KST — VERIFIED current OAuth disappearing-state continuity 3/3
 
 **Exact latest SOURCE/TESTS SHA:**
