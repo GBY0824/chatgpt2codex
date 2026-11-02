@@ -1,5 +1,75 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — OFFICIAL OPENAI MCP EVENT SCOPE AND SECOND WINDOWS RETRY
+
+**Current official developer documentation independently reviewed:**
+- OpenAI [MCP Events](https://developers.openai.com/plugins/build/mcp-events):
+  **event subscriptions are documented for Work chats
+  on web, Work + Cloud desktop, and dots**. Although a connected
+  MCP can publish updates via events/list/subscribe/unsubscribe,
+  the currently documented mechanism is **NOT a verified
+  original ordinary consumer ChatGPT Project CHAT turn/limit
+  event attestor**, and its destinations are not documented as
+  an API for native same-Project chat rollover. Do not change
+  the user's exact ordinary CHAT 2/2 target to Work or dots.
+- OpenAI [Plugin reference](https://developers.openai.com/plugins/reference):
+  tool-call `_meta["openai/session"]` is an **anonymized
+  conversation/session correlation hint** available during tool
+  invocations. It does not prove every Android/desktop user
+  turn, context-limit boundary or newly created successor.
+  Other client user-agent hints are best-effort; no identity
+  or Goal authorization may rest on them.
+- OpenAI [Conversations API create](https://developers.openai.com/api/reference/resources/conversations/methods/create)
+  documents `POST /conversations` for API-managed
+  conversations, not an API to create a new ordinary
+  consumer ChatGPT Project CHAT. Do not substitute API chat
+  for the acceptance contract.
+These are **documented current support boundaries**, not
+proof that future platform features can never exist.
+Stay blocked on authenticated original provider turn/limit
+event + exact native same-Project successor.
+
+**Actual intermittent Windows native CI root evidence:**
+previous source SHA `25292373...` had Windows FAILED
+`SYNTHETIC_WRITER_EXIT_1:errno=EPERM:reason=LOCK_IO_FAILED`;
+the earlier EACCES/EPERM retry required positive `lstat`
+evidence and could refuse when no regular lock was seen.
+This is not proof that any production OAuth token was touched.
+
+**Second fail-closed candidate refinement:**
+`c6a58dcc445612eaeb741e771426765051af104f`
+recognizes unverified Windows EPERM/EACCES only as a
+*transient OS exclusive-open denial*, NOT a verified
+competing writer lock. It retries **exactly the same
+atomic `wx`** until <=5s deadline; unless `wx`
+succeeds, no OAuth state transaction occurs. If a
+regular existing lock was observed the timeout remains
+`BUSY_OR_STALE`; with unverified/missing pathname
+persistent denial remains `OAUTH_WRITE_LOCK_IO_FAILED`,
+with no automatic deletion/reclamation. All other
+errno and non-Windows access failures remain immediately
+fail-closed. Regression `aeac9dc927bb1d80975f4ebe41e15c95ba0effaa`
+distinguishes the two categories.
+[Actions 41366873885](https://github.com/GBY0824/chatgpt2codex/actions/runs/41366873885)
+had Linux/macOS success, hosted native Windows
+GOAL race and OAuth 4-round cross-process steps SUCCESS,
+and final artifact verification still PENDING at the
+initial observation. Recheck all jobs for exact SHA
+before declaring complete CI 3/3; also retain the
+FAILED 41366400794 evidence because a later green
+does not prove flakiness impossible forever.
+
+No original deployed Windows 7979/isolated 7987
+or user OAuth/Task Scheduler/Chrome/consumer ChatGPT
+state was modified. The downloaded Windows stage bundle
+is NOT installed. PR #1 remains DRAFT/UNMERGED.
+Actual GOAL research effects 0; genuine unattended
+native Project CHAT rollover 0/2. Only user-triggered
+continuation in this turn, not an unattended transition.
+
+---
+
+
 ## 2026-11-02 KST — INTERMITTENT WINDOWS EPERM STILL OBSERVED; BOUNDED RETRY REPAIR UNDER CI
 
 **Corrective evidence after earlier 3/3 green:** exact source
