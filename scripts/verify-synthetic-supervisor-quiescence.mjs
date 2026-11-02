@@ -113,6 +113,11 @@ function assess(plan) {
   if (plan.privateStateBackupVerified !== true) block("OAUTH_STATE_BACKUP_UNVERIFIED");
   if (plan.rollbackRehearsed !== true) block("ROLLBACK_UNVERIFIED");
   if (plan.oldAndNewNeverShareLiveState !== true) block("DUAL_OAUTH_WRITER_RISK");
+  // Migration is not first-time enrollment: without an opt-in existing OAuth
+  // file gate, a restarted candidate could reinitialize missing owner client
+  // registrations as an empty first-time store.
+  if (plan.candidateRequiresExistingOAuthState !== true)
+    block("CANDIDATE_EXISTING_OAUTH_STARTUP_FENCE_NOT_ENABLED");
   return {
     syntheticPreconditionsMet: blockers.length === 0,
     blockers,
@@ -164,6 +169,7 @@ const approvedFixture = {
   privateStateBackupVerified: true,
   rollbackRehearsed: true,
   oldAndNewNeverShareLiveState: true,
+  candidateRequiresExistingOAuthState: true,
 };
 // Separate positive synthetic model: unrelated modes may remain Running
 // ONLY when static/runtime evidence positively excludes both 7979 relaunch
@@ -226,6 +232,8 @@ const scenarios = [
   ["NO_PRIVATE_STATE_BACKUP", p => { p.privateStateBackupVerified = false; }, "OAUTH_STATE_BACKUP_UNVERIFIED"],
   ["NO_ROLLBACK_PROOF", p => { p.rollbackRehearsed = false; }, "ROLLBACK_UNVERIFIED"],
   ["CONCURRENT_OLD_AND_NEW", p => { p.oldAndNewNeverShareLiveState = false; }, "DUAL_OAUTH_WRITER_RISK"],
+  ["CANDIDATE_COLD_START_MISSING_OAUTH_FENCE", p => { p.candidateRequiresExistingOAuthState = false; }, "CANDIDATE_EXISTING_OAUTH_STARTUP_FENCE_NOT_ENABLED"],
+  ["CANDIDATE_COLD_START_FALSE_STRING", p => { p.candidateRequiresExistingOAuthState = "true"; }, "CANDIDATE_EXISTING_OAUTH_STARTUP_FENCE_NOT_ENABLED"],
   ["NO_QUIESCENCE_APPROVAL", p => { p.ownerQuiescenceApproval = false; }, "OWNER_QUIESCENCE_APPROVAL_REQUIRED"],
   ["NO_CUTOVER_APPROVAL", p => { p.ownerCutoverApproval = false; }, "OWNER_CUTOVER_APPROVAL_REQUIRED"],
   ["NOT_COMPLETE_INVENTORY", p => { p.inventoryComplete = false; }, "SUPERVISOR_INVENTORY_INCOMPLETE"],
