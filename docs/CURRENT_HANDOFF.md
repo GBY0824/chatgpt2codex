@@ -1,5 +1,99 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — NEW: WINDOWS OAUTH LOCK-OPEN FLUKE + GOAL OFF FENCE RACE
+
+This continuation was explicitly requested by user, **NOT** an
+unattended consumer CHAT rollover. All changes source/tests/docs
+only on review branch `goal-app-auth-review-20261101`; PR #1
+remains DRAFT UNMERGED. Original running Windows MCP port 7979,
+isolated stage 7987, Scheduler, OAuth clients/tokens, browser and
+installed binaries have NOT been changed. Real GOAL work **0**;
+same-Project ordinary consumer CHAT unattended rollovers **0/2**.
+
+**New actual CI failure discovered:** prior docs HEAD
+`a6233283cba2f127bdf50f9d25558f396ac566cc`,
+[GitHub Actions 41362546187](https://github.com/GBY0824/chatgpt2codex/actions/runs/41362546187)
+**COMPLETED FAILURE** (Linux source and macOS SUCCESS,
+native Windows FAILURE in
+`Windows separate candidate processes serialize OAuth client writes`).
+Native Windows log shows `OAUTH_WRITE_LOCK_IO_FAILED` from
+the candidate `open('oauth-write.lock', 'wx')` cross-process
+test. The underlying errno was initially NOT logged, so it is
+NOT verified whether this was an OS sharing transient or actual
+permission/IO error. Earlier runs for this test had passed;
+do not misstate this as normal successful CI.
+
+**Bounded OAuth protection repair, source only:**
+- `src/auth/oauth-store.ts` commit
+  `6039f030c199c3fb21030b32048279534e590287`:
+  preserve normal EEXIST busy retry. On **Windows only**
+  allow EACCES/EPERM as a potential competing-writer condition
+  **ONLY after lstat independently verifies a regular lock file
+  at exactly the lock pathname**. If not present, unreadable,
+  symlink/dir, other errno, or any other platform: immediately
+  fail closed with original IO error. Busy cases retain the
+  existing strict 5-second deadline, and never steal/delete
+  unknown locks.
+- `src/auth/oauth-store-failclosed.test.ts` commit
+  `57f10cd3e2ed8b8fe5ae5ea605aa79590ce1549e`
+  adds platform/errno/verified-file classification negatives.
+- `scripts/verify-oauth-writer-lock.mjs` commit
+  `4f8920fb7818ba929c755881ef12a79f2700fc60`
+  records **errno category only** for a failed disposable
+  synthetic child, not private paths or credentials; commit
+  `a6d424a7972c17e85cf0ec7dbf04b42b64482de5`
+  repeats actual 3-worker x 8-client Windows/Linux contention
+  test over **4** fresh synthetic directories, each ensuring
+  24 distinct clients and no orphan lock. Its first round
+  still tests one stale foreign claim and unchanged OAuth bytes.
+  No owner state is used. CI on source at `6039...`,
+  `57f10...`, and `4f892...` independently returned
+  **COMPLETED SUCCESS Linux/Windows/macOS 3/3**.
+  New four-round SHA
+  [Actions 41366259726](https://github.com/GBY0824/chatgpt2codex/actions/runs/41366259726)
+  had Linux/macOS success and Windows still in progress at
+  first checkpoint. Verify final independently.
+
+**Additional GOAL ledger safety defect, source only:**
+`goal-app-intent.ts` previously grouped `stat` and
+`readFile` under the same catch that returned the initial
+OFF, revision-0 state on *any* ENOENT. If a previously
+existing OFF-fence ledger disappeared after stat but before
+read, the catch could silently reinitialize revision zero.
+Commit `00086832cbba583f7e2f096b61f0b700f03ac45d`
+now distinguishes initial missing pathname from failure while
+reading an existing ledger: latter gets
+`APP_GOAL_LEDGER_READ_FAILED`, not silent fresh state;
+also re-checks bounded UTF-8 size after read. Commit
+`25292373d79022bd8b4ded5883df2837d09f3a71`
+uses `lstat` to refuse a symlink/non-file ledger.
+Tests `39bebe89c63b837c61a32b6bf2a9b616aaca8332`
+assert absent-initial OFF, non-file refusal, oversized/malformed
+refusal, and preserved known OFF revision after original bytes
+are restored. These are controlled disposable fixtures only;
+not a deterministic injected stat/read race test.
+The latest exact code/test
+[Actions 41366425924](https://github.com/GBY0824/chatgpt2codex/actions/runs/41366425924)
+was **IN PROGRESS** when first checked; recheck final
+Linux/Windows/macOS job outcomes before claiming 3/3.
+
+**Near-term safe next step:** verify all CI for precise
+`a6d424...` and `39bebe...`, fix actual test failures
+rather than weakening fail-closed auth. Then require
+separately authorized deployed watchdog/launcher/WScript/
+Startup provenance (real installed watchdog differs from
+GitHub archived watcher), explicit owner-approved one-writer
+reversible old-v0.2.0 OAuth cutover, official authenticated
+original consumer CHAT turn/context limit/same-Project
+successor provenance and separate P3 GOAL work permit.
+Existing app GOAL ON/OFF ledger is **intent only**,
+not authority to execute work, and no mechanism proven here
+can actually create an unattended ordinary consumer CHAT.
+No denial bypass, no scheduled workaround, no live migration.
+
+---
+
+
 ## 2026-11-02 KST — NEWEST INDEPENDENT SOURCE CI CLOSED 3/3
 
 **Fully VERIFIED code+workflow source SHA:**
