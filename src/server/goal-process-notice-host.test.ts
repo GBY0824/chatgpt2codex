@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm, writeFile, appendFile } from "node:fs/promises";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { goalAppCommand, type VerifiedAppCaller } from "./goal-app-intent.js";
@@ -18,9 +18,18 @@ const auth: VerifiedAppCaller = {
 const adapter = `
 import { readFileSync, appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { createHmac, timingSafeEqual } from "node:crypto";
 let data = "";
 for await (const chunk of process.stdin) data += chunk.toString();
-const payload = JSON.parse(data);
+const wire = JSON.parse(data);
+const payload = JSON.parse(wire.body);
+const key = readFileSync(join(dirname(payload.intentLedgerPath), "goal-process-bridge.key"));
+const expected = createHmac("sha256", key).update(wire.body).digest("hex");
+if (wire.schema !== 1 || typeof wire.signature !== "string"
+    || wire.signature.length !== expected.length
+    || !timingSafeEqual(Buffer.from(wire.signature,"hex"), Buffer.from(expected,"hex"))) {
+  process.exit(8);
+}
 const ledger = JSON.parse(readFileSync(payload.intentLedgerPath, "utf8"));
 const notice = payload.notice;
 if (payload.schema !== 1 || ledger.lastCommandId !== notice.commandId
@@ -44,11 +53,14 @@ async function fixture() {
   const research = path.join(root, "research");
   const state = path.join(root, "state");
   await mkdir(research); await mkdir(state);
+  const bridgeKeyFile=path.join(state,"goal-process-bridge.key");
+  await writeFile(bridgeKeyFile,randomBytes(32));
   const script = path.join(research, "trusted-host.mjs");
   await writeFile(script, adapter);
   const cfg: GoalProcessHostConfig = {
     projectRoot: research, stateDir: state, executable: process.execPath,
     script, scriptSha256: createHash("sha256").update(adapter).digest("hex"),
+    bridgeKeyFile,
   };
   return {root, research, state, script, cfg};
 }
