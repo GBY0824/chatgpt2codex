@@ -13,6 +13,7 @@ const baseline = {
   ownerTokenRecordMatches: false, accessTokenRecordsMatch: false,
   refreshTokenRecordsMatch: false, persistedResourcesMatchPin: false,
   oldWriterQuiescenceVerified: false, externallyPinnedSnapshotVerified: false,
+  existingChatGPTAuthorizationProven: false,
   productionCutoverAuthorized: false, dataModified: false,
   credentialsOrIdentifiersPrinted: false, unredactedPathsPrinted: false,
 };
@@ -100,6 +101,10 @@ try {
     if (!validResource) {
       fail("OAUTH_PRIVATE_CONTINUITY_RESOURCE_PIN_INVALID");
     } else {
+      // An alias of the state root is not an independent trusted capture.
+      // Validate the ORIGINAL supplied paths before canonicalization, not
+      // just the canonical file children, to reject Windows junctions.
+      await Promise.all([args[0], args[1]].map(refuseSymlinkAncestors));
       const [source, candidate] = await Promise.all(
         [args[0], args[1]].map(x => fs.realpath(x))
       );
