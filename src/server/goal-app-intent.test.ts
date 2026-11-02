@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { GoalAppCommandError, goalAppCommand, withGoalIntentClaim, type VerifiedAppCaller } from "./goal-app-intent.js";
@@ -91,6 +91,45 @@ describe("OAuth-scoped APP intent — NOT ChatGPT provider turn or research auth
     await expect(withGoalIntentClaim(marker, async () => {
       await rm(marker);
     })).rejects.toMatchObject({ code: "APP_GOAL_LOCK_OWNERSHIP_LOST" });
+  });
+
+  it("treats only a genuinely absent GOAL ledger as the initial OFF revision", async () => {
+    const d = await dir();
+    const f = path.join(d, "goal-app-command-intent.json");
+    expect(await call(d, "status")).toMatchObject({
+      requestedMode: "OFF", revision: 0, originalChatTurnAttested: false,
+    });
+    await mkdir(f);
+    await expect(call(d, "status")).rejects.toMatchObject({
+      code: "APP_GOAL_LEDGER_READ_FAILED",
+    });
+    await expect(call(d, "ON", 0)).rejects.toMatchObject({
+      code: "APP_GOAL_LEDGER_READ_FAILED",
+    });
+    expect((await (await import("node:fs/promises")).stat(f)).isDirectory()).toBe(true);
+  });
+
+  it("rejects oversized and malformed GOAL ledgers without resetting OFF revocation", async () => {
+    const d = await dir();
+    const f = path.join(d, "goal-app-command-intent.json");
+    await call(d, "OFF");
+    const fenced = await readFile(f, "utf8");
+    await writeFile(f, "x".repeat(4097), "utf8");
+    await expect(call(d, "status")).rejects.toMatchObject({
+      code: "APP_GOAL_LEDGER_OVERSIZED",
+    });
+    await expect(call(d, "ON", 0)).rejects.toMatchObject({
+      code: "APP_GOAL_LEDGER_OVERSIZED",
+    });
+    await writeFile(f, fenced.slice(0, -2), "utf8");
+    await expect(call(d, "ON", 0)).rejects.toMatchObject({
+      code: "APP_GOAL_LEDGER_CORRUPT",
+    });
+    await writeFile(f, fenced, "utf8");
+    expect(await call(d, "status")).toMatchObject({
+      requestedMode: "OFF", revision: 1,
+    });
+    expect((await call(d, "ON", 0)).code).toBe("APP_GOAL_REVISION_STALE");
   });
 
   it("fails closed on corrupt state and a held lock", async () => {
