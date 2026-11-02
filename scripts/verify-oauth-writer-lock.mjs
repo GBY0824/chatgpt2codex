@@ -28,10 +28,18 @@ if(process.argv[3]==='--worker') {
   if(!dir || !path.isAbsolute(dir)||!path.basename(path.dirname(dir)).startsWith(marker) ||
      !Number.isSafeInteger(worker)||worker<0||worker>workers)throw Error('SYNTHETIC_WORKER_ARGUMENT_DENIED');
   const store=new JsonOAuthStore(dir);
-  for(let k=0;k<clientsPerWorker;k++) {
-    await store.registerClient(clientSpec(worker,k),[]);
+  try {
+    for(let k=0;k<clientsPerWorker;k++) {
+      await store.registerClient(clientSpec(worker,k),[]);
+    }
+    console.log('SYNTHETIC_OAUTH_WRITER_FINISHED');
+  } catch (error) {
+    // Emit only the errno category in CI diagnostics: never any token,
+    // full local path, stack, user OAuth state or command-line arguments.
+    const errno=error?.cause?.code||error?.code||'NO_ERRNO';
+    console.error('SYNTHETIC_OAUTH_WRITER_ERRNO='+String(errno).replace(/[^A-Z_]/g,'').slice(0,32));
+    throw error;
   }
-  console.log('SYNTHETIC_OAUTH_WRITER_FINISHED');
 } else {
   if(process.argv.length!==3)throw Error('SYNTHETIC_UNEXPECTED_ARGUMENTS');
   const temp=await mkdtemp(path.join(os.tmpdir(),marker));
@@ -46,7 +54,13 @@ if(process.argv[3]==='--worker') {
       child.stderr.on('data',c=>{err+=c.toString().slice(0,1000)});
       child.once('error',reject);
       child.once('close',(code)=>{
-        if(worker<workers&&code!==0)reject(Error('SYNTHETIC_WRITER_EXIT_'+code+':'+err.slice(0,250)));
+        if(worker<workers&&code!==0) {
+          const category=err.match(/SYNTHETIC_OAUTH_WRITER_ERRNO=([A-Z_]+)/)?.[1]||'UNKNOWN';
+          const reason=err.includes('OAUTH_WRITE_LOCK_IO_FAILED') ? 'LOCK_IO_FAILED'
+            : err.includes('OAUTH_WRITE_LOCK_BUSY_OR_STALE') ? 'LOCK_BUSY_OR_STALE'
+            : 'OTHER';
+          reject(Error('SYNTHETIC_WRITER_EXIT_'+code+':errno='+category+':reason='+reason));
+        }
         else resolve({code,out,err});
       });
     });
