@@ -2,7 +2,7 @@
  * Explicit owner-authorized APP-level GOAL request, NOT an original consumer
  * ChatGPT user-turn attestation, P3 clearance, or permission to run research.
  */
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -21,6 +21,19 @@ export interface GoalAppInput {
   action: "status" | "ON" | "OFF";
   expectedRevision?: number;
 }
+/** Post-commit APP notification for an independently authorized host.
+ * Not a signed ChatGPT consumer turn, P3 work permit or execution command.
+ * Its authenticated-principal fingerprint is diagnostic only. */
+export interface PersistedGoalAppNotice {
+  source: "OAUTH_SCOPED_APP_INTENT";
+  action: "ON" | "OFF";
+  revision: number;
+  commandId: string;
+  clientFingerprint: string;
+  originalChatTurnAttested: false;
+  researchExecutionAuthorized: false;
+}
+export type GoalAppNoticeHost = (notice: Readonly<PersistedGoalAppNotice>) => Promise<void>;
 interface IntentState {
   schema: 1;
   requestedMode: "ON" | "OFF";
@@ -154,6 +167,7 @@ export async function withGoalIntentClaim<T>(
 export async function goalAppCommand(
   stateDir: string, input: GoalAppInput, verifiedAuth: VerifiedAppCaller | undefined,
   remote: boolean,
+  onPersistedNotice?: GoalAppNoticeHost,
 ): Promise<Record<string, unknown>> {
   validateCaller(verifiedAuth, remote);
   if (input.action !== "status" && input.action !== "ON" && input.action !== "OFF") {
@@ -174,7 +188,8 @@ export async function goalAppCommand(
   // Cross-process mutual exclusion; abandon/unknown lock fails closed.
   await fs.mkdir(stateDir, { recursive: true });
   const lockPath = `${filePath}.lock`;
-  return withGoalIntentClaim(lockPath, async () => {
+  let written: { action: "ON" | "OFF"; revision: number; commandId: string } | null = null;
+  const result = await withGoalIntentClaim(lockPath, async () => {
     const s = await loadState(filePath);
     if (input.action === "ON" && input.expectedRevision !== s.revision) {
       return { code: "APP_GOAL_REVISION_STALE", requestedMode: s.requestedMode,
@@ -198,8 +213,41 @@ export async function goalAppCommand(
       throw new GoalAppCommandError("APP_GOAL_REVISION_EXHAUSTED");
     }
     await saveState(filePath, next);
+    written = { action: next.requestedMode, revision: next.revision,
+      commandId: next.lastCommandId! };
     return { code: "APP_GOAL_INTENT_RECORDED_ONLY", requestedMode: next.requestedMode,
       revision: next.revision, researchExecutionAuthorized: false,
       originalChatTurnAttested: false, effectsIssued: 0 };
   });
+  if (!written || !onPersistedNotice) return result;
+  // Notify only after the durable state write AND lock release. GOAL OFF
+  // must not wait for an executing ON host callback to release the lock.
+  // A callback is a notification, NEVER authority to start P3 research.
+  const emitted = written as { action: "ON" | "OFF"; revision: number; commandId: string };
+  try {
+    const latest = await loadState(filePath);
+    if (latest.revision !== emitted.revision ||
+        latest.lastCommandId !== emitted.commandId ||
+        latest.requestedMode !== emitted.action) {
+      return { ...result, eventNotice: "SUPERSEDED_BEFORE_NOTIFY",
+        researchExecutionAuthorized: false, effectsIssued: 0 };
+    }
+    await onPersistedNotice(Object.freeze({
+      source: "OAUTH_SCOPED_APP_INTENT" as const,
+      action: emitted.action, revision: emitted.revision,
+      commandId: emitted.commandId,
+      clientFingerprint: createHash("sha256")
+        .update(verifiedAuth!.clientId).digest("hex"),
+      originalChatTurnAttested: false as const,
+      researchExecutionAuthorized: false as const,
+    }));
+    return { ...result, eventNotice: "APP_HOST_NOTIFIED_NO_EXECUTION",
+      researchExecutionAuthorized: false, effectsIssued: 0 };
+  } catch {
+    // Never rollback a persisted OFF or pretend a failed callback succeeded.
+    // The host must reconcile the actual persisted revision before NEXT.
+    return { ...result, code: "APP_GOAL_NOTICE_UNVERIFIED_RECONCILIATION_REQUIRED",
+      eventNotice: "UNVERIFIED", researchExecutionAuthorized: false,
+      originalChatTurnAttested: false, effectsIssued: 0 };
+  }
 }
