@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { JsonOAuthStore, hashToken, isVerifiedOAuthWriterContention } from "./oauth-store.js";
+import { JsonOAuthStore, hashToken, isVerifiedOAuthWriterContention, isRetryableWindowsOAuthOpenDenial } from "./oauth-store.js";
 
 const REDIRECT = "http://127.0.0.1:49173/callback";
 const basicClient = {
@@ -44,6 +44,18 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
     }
     for (const errno of ["ENOENT", "EIO", "ENOSPC", "EROFS", undefined]) {
       expect(isVerifiedOAuthWriterContention(errno, "win32", true)).toBe(false);
+    }
+  });
+
+  it("retries only Windows-exclusive-open EPERM/EACCES but never equates absent lock with owned claim", () => {
+    for (const errno of ["EPERM", "EACCES"]) {
+      expect(isRetryableWindowsOAuthOpenDenial(errno, "win32")).toBe(true);
+      expect(isRetryableWindowsOAuthOpenDenial(errno, "linux")).toBe(false);
+      expect(isRetryableWindowsOAuthOpenDenial(errno, "darwin")).toBe(false);
+      expect(isVerifiedOAuthWriterContention(errno, "win32", false)).toBe(false);
+    }
+    for (const errno of ["EEXIST", "EIO", "ENOENT", "ENOSPC", "EROFS", undefined]) {
+      expect(isRetryableWindowsOAuthOpenDenial(errno, "win32")).toBe(false);
     }
   });
 
