@@ -1,5 +1,86 @@
 # GOAL app-command OAuth review (not deployed)
 
+## 2026-11-02 KST — APP GOAL ON/OFF -> governed host notification hook (source only)
+
+**Actual implementation direction is now GOAL-first**, not another
+iteration of unrelated OAuth snapshot hardening. The candidate
+single ORIGINAL MCP now supports a **bounded post-commit event hook**
+to which a future separately authorized research host may subscribe
+within the same MCP runtime. This does NOT create a second MCP,
+a scheduled watcher, a browser message sender, a P3 writer,
+or autonomous research authority.
+
+- Candidate source `src/server/goal-app-intent.ts`
+  `5b9ef83be43a712eba8ffad7c4e7c58872757e64`
+  exports typed `PersistedGoalAppNotice`,
+  `GoalAppNoticeHost`, and the optional
+  `goalAppCommand(..., onPersistedNotice)`.
+  After a **server-verified** OAuth goal-scope APP request
+  saves the ON or OFF intent and releases its exclusive
+  ledger lock, the optional host is notified once with
+  `source="OAUTH_SCOPED_APP_INTENT"`,
+  revision, command ID and a SHA256 **opaque client
+  fingerprint**, but no raw OAuth token/client ID or
+  ChatGPT turn claim. The typed record explicitly says
+  `originalChatTurnAttested=false` and
+  `researchExecutionAuthorized=false`.
+  The current host must independently verify current
+  P4 Stage, P3 owner/one-use work permit and actual
+  ledger freshness before starting any worker.
+- Repeated ON with unchanged revision no longer rotates
+  `lastCommandId` or produces a second notification;
+  pre-existing OFF safety continues to win. Patch
+  `3dfd7b893a12dff5fa633e387df2f65647c8db09`.
+- Host notifications are attempted **after unlocking**,
+  so a slow ON observation never prevents GOAL OFF
+  revocation. A callback failure cannot roll back an
+  already persisted OFF, falsely grant a work permit
+  or silently count completed work: it reports
+  `APP_GOAL_NOTICE_UNVERIFIED_RECONCILIATION_REQUIRED`.
+  No automatic resend of an ambiguous ON; an owner
+  host must reconcile durable ledger revision/command ID.
+- `src/types.ts` commit
+  `282d148a89d6adbc0844960f0a19bd70d4c8b623`
+  adds **optional, disabled-by-default**
+  `ToolContext.goalAppNoticeHost` callback, and
+  `src/server/tools.ts` commit
+  `801642fd02b3ca6ebe670b4a46852acf9395e217`
+  passes it to the already-registered original MCP
+  `goal_app_command` implementation.
+  Neither HTTP nor stdio runtime currently injects a
+  P3-capable host; that is a separate approval boundary.
+- Synthetic Vitest at
+  `b2ff3c73273c067c2f703fdaca1b26801c5e6eb6`
+  executes real in-process callback delivery for distinct
+  authenticated fake ON/OFF requests, duplicate ON
+  suppression, callback failure/durable state recovery
+  and a paused ON callback while OFF persists. It
+  proves no P3 permission, execution or consumer
+  ChatGPT provider-turn proof was minted.
+- Exact source+test
+  [Actions 41391113493](https://github.com/GBY0824/chatgpt2codex/actions/runs/41391113493)
+  Linux focused tests, TypeScript and build and macOS
+  control regressions **SUCCESS**; native Windows
+  full CI still **IN PROGRESS** at first checkpoint.
+  Check full 3/3 independently before claiming it.
+
+**LIVE owner-PC GOAL readiness** read-only code through
+connected original ChatGPT To Codex:
+`python -B tools/runtime_vnext/goal_control_mcp/server.py --readiness`
+returned **GOAL_READINESS_BLOCKED** with `P3 COMPLETE`,
+`P4R ACTIVE`, `P4 PENDING`, Chrome self-report fresh
+but NOT provider-authenticated, and
+`goal_execution_authorized=false`, `effects_issued=0`,
+`accepted_unattended_rollovers=0/2`.
+Thus this candidate APP event hook is necessary plumbing,
+NOT the actual operational Goal loop. No protected
+Stage edit, P3 owner grant, live OAuth cutover,
+MCP reinstall, Chrome action, Work/dots substitution
+or worker execution occurred.
+
+---
+
+
 ## 2026-11-02 KST — real independent Node processes, synthetic GOAL state only
 
 Candidate script
