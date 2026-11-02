@@ -23,6 +23,7 @@ import { Store } from "./state/store.js";
 import { Ledger } from "./state/ledger.js";
 import { createServer } from "./server/mcp-server.js";
 import { createHttpServer, defaultHttpServerConfig } from "./server/http.js";
+import { createGoalStageReadOnlyHost } from "./server/goal-stage-readonly.js";
 import { resolveIsolatedStateDir } from "./state/isolated-state.js";
 import { generateOwnerToken, hasOwnerToken, storeOwnerToken } from "./auth/owner-token.js";
 import { JsonOAuthStore } from "./auth/oauth-store.js";
@@ -223,6 +224,19 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
     return;
   }
   const ctx = await buildToolContext(workspace, stateDir);
+  // Owner-selected, explicitly opt-in STAGE READ ONLY diagnostic.
+  // It is never an automatic P3 permit, GoalEventEngine worker or
+  // ordinary ChatGPT Project CHAT provider-attestation bridge.
+  if (flags["goal-readonly-stage-check"] !== undefined &&
+      flags["goal-readonly-stage-check"] !== true) {
+    throw new Error("GOAL_READONLY_STAGE_FLAG_MUST_BE_BOOLEAN");
+  }
+  if (flags["goal-readonly-stage-check"] === true) {
+    if (typeof flags.workspace !== "string" || !path.isAbsolute(flags.workspace)) {
+      throw new Error("GOAL_READONLY_STAGE_ABSOLUTE_WORKSPACE_REQUIRED");
+    }
+    ctx.goalAppNoticeHost = createGoalStageReadOnlyHost(workspace);
+  }
 
   const port = typeof flags.port === "string" ? Number.parseInt(flags.port, 10) : 7979;
   const host = typeof flags.host === "string" ? flags.host : "127.0.0.1";
@@ -288,6 +302,9 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
 async function cmdServe(flags: Record<string, string | boolean>): Promise<void> {
   if (!flags.http && flags["require-existing-oauth-state"] !== undefined) {
     throw new Error("REQUIRE_EXISTING_OAUTH_REQUIRES_HTTP");
+  }
+  if (!flags.http && flags["goal-readonly-stage-check"] !== undefined) {
+    throw new Error("GOAL_READONLY_STAGE_REQUIRES_HTTP");
   }
   if (flags.http) {
     await cmdServeHttp(flags);
