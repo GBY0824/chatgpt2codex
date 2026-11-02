@@ -355,10 +355,11 @@ jobs:
               !blocked.stderr.includes("ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED")) {
             throw new Error("Production-port refusal missing: " + blocked.stderr);
           }
-          // The successful guard pass can legitimately create a separate,
-          // empty staging state before refusing the missing owner token.
-          if (!fs.existsSync(isolated)) {
-            throw new Error("Valid isolated execution never reached state initialization");
+          // Hardened startup now refuses missing owner token BEFORE project
+          // registry/ledger initialization, even with valid staging args.
+          // Never restore a weaker expectation merely to pass legacy CI.
+          if (fs.existsSync(isolated)) {
+            throw new Error("Missing owner token unexpectedly created staging state");
           }
           console.log("ISOLATED_STATE_CLI_FAIL_CLOSED_PASS");
           '@ | node -
