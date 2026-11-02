@@ -1,5 +1,84 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — VERIFIED current OAuth disappearing-state continuity 3/3
+
+**Exact latest SOURCE/TESTS SHA:**
+`dfed328cc3e7da50732d53f11f4553b9083671ac`,
+[GitHub Actions 41367840079](https://github.com/GBY0824/chatgpt2codex/actions/runs/41367840079)
+independently **COMPLETED SUCCESS Linux/Windows/macOS
+3/3**. Actual job logs checked:
+- Linux 47/47 focused tests; Windows 46 passed, 1 skipped.
+- Windows and Linux both passed
+  `SYNTHETIC_GOAL_CROSS_PROCESS_INTENT_EXCLUSION_PASS`:
+  12 independent Node child processes, four synthetic
+  ON intent wins, nine stale/busy rejections, zero
+  real execution effects.
+- Windows and Linux both passed
+  `SYNTHETIC_OAUTH_CROSS_PROCESS_WRITER_EXCLUSION_PASS`:
+  4 rounds of 3 Node writers, 24 dummy clients retained
+  per round, no stale foreign lock deleted.
+- Windows `SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS
+  cases=50 negativeCases=48 positiveFixtures=2`;
+  downloaded isolated Windows bundle
+  `DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=3480`.
+  This was only CI staging, NOT an owner PC installation.
+
+**Actual new protective behavior:**
+`JsonOAuthStore.load()` now allows new blank OAuth
+state only if `oauth.json` was *initially absent* and
+this same process instance has never observed/persisted
+a valid OAuth file. If a known-good store disappears
+after registration or between `lstat` and `readFile`,
+writes fail closed with `OAUTH_STORE_READ_FAILED`
+instead of losing client/token records. Symlinks and
+non-files fail closed. The source tests simulate
+disappearance and restore bytes in a disposable fixture,
+asserting both synthetic **registered-client identity
+and refresh-token record** survive restoration.
+This is SAME-PROCESS protection; a fresh process that
+never saw prior state requires owner-pinned backups or
+a separate durable provenance fence to detect prior
+external deletion. Nothing in this source repairs a
+lost real OAuth file or authorizes an auto-rotation.
+
+**Independent Windows OAuth contention decision tests:**
+exact source/test `0b2558a2003a9023629f532eb0502a628d74497d`
+[CI 41367547751](https://github.com/GBY0824/chatgpt2codex/actions/runs/41367547751)
+also **COMPLETED SUCCESS 3/3**. Sixteen deterministic
+cases ensure Windows EPERM with missing/unknown lock
+only retries bounded OS-atomic exclusive creation,
+with persistent denial as actual IO failure;
+the prior flake run remains archived, not hidden.
+
+**Live host remains untouched:** fresh read-only
+Codex bridge observed original 7979 one listener,
+isolated 7987 one listener, and main original Task
+Scheduler state Running. No installed program,
+Windows service/task/Startup, OAuth clients/tokens,
+ChatGPT consumer CHAT, Chrome or real research worker
+was touched. PR #1 remains DRAFT unmerged.
+The installed Windows watchdog remains byte-different
+from preserved GitHub research script; original
+relaunch modes not fully proven. Original v0.2.0
+does not honor candidate OAuth lock and may not
+be dual-written. Official ordinary consumer native
+Project CHAT limit/successor attestation remains
+unavailable or unproven; no client API/Work/dots
+substitution is accepted.
+
+**Next stage priority:** with separately approved
+access verify exact installed watcher/launcher/
+WScript/Startup bytes and per-argument control flow;
+prepare owner-approved reversible isolated OAuth
+snapshot+single-writer migration. Genuine ordinary
+consumer CHAT limit notification, native same-Project
+successor and P3 research permit need their own
+independent evidence. Actual GOAL research effects
+**0**, unattended rollover **0/2**.
+
+---
+
+
 ## 2026-11-02 KST — OWNER REQUEST: CLOSE OLD PROBLEMS, THEN ADVANCE; OAUTH PERSISTENCE RECOVERY
 
 **Manual user turn**, no unattended rollover. Draft PR #1
