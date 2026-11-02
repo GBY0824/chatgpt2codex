@@ -1,5 +1,47 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — FINAL SOURCE SHA VERIFIED 3/3: UNKNOWN-FIELD AND METADATA DRIFT
+
+**Independently checked latest substantive code+tests SHA**
+`140df7fd99e94a551b362e29c56734c450ac4736`
+[GitHub Actions 41387603370](https://github.com/GBY0824/chatgpt2codex/actions/runs/41387603370):
+**COMPLETED SUCCESS Linux source / native Windows /
+macOS, 3/3**. The actual compiled comparator
+regression step passed on Linux and Windows,
+alongside unrelated full Windows package/offline
+artifact regression, build and macOS controls.
+Source-only strict comparison changes are at
+`ff628b24515ccc2607b735b5fee8e3e8b2d161ff`,
+expanded negative fixture at `140df7fd...`.
+Unknown additional top-level OAuth, owner, client
+or token record fields are NOT silently ignored,
+and `oauth.json.updatedAt` metadata mismatch
+cannot yield `STRUCTURAL_MATCH`.
+
+**Conservative operational status unchanged:**
+No live Windows owner OAuth copy was taken, no
+real owner client set validated, no production
+7979 or isolated 7987 service/task changed.
+The only new Windows owner metadata request
+(known installed script sizes/hashes) was
+blocked by permission under selected read-only
+lease, NOT escalated, retried or bypassed.
+Installed watchdog execution path and launcher
+per-argument WScript/Startup dispatch remain
+unverified. The preexisting v0.2.0 does not
+participate in upgraded OAuth single-writer lock,
+so no concurrent old/new writing is permissible.
+PR #1 remains DRAFT/UNMERGED; actual GOAL research
+effects 0; genuine unattended ordinary consumer
+Project CHAT rollover 0/2. Provider original
+turn/limit/same-Project successor remains
+unattested. Continue only with permissions
+appropriate to next verified work; prior denial
+cannot be interpreted as authorization.
+
+---
+
+
 ## 2026-11-02 KST — PRIVATE OAUTH COMPARATOR HIDDEN-FIELD FALSE PASS FIXED
 
 **Current user request:** continue the single original MCP integration,
