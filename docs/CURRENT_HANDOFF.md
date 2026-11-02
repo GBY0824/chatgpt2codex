@@ -1,5 +1,60 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — FULL 3/3 VERIFICATION CLOSED: EXISTING OAUTH COLD-START FENCE
+
+**Latest exactly verified substantive code+CI SHA**
+`40a1090ecae767a31390fdf63be4a02a0c452ed1`,
+[GitHub Actions 41369156870](https://github.com/GBY0824/chatgpt2codex/actions/runs/41369156870):
+**COMPLETED SUCCESS all 3/3** Linux, native Windows,
+macOS. Actual native Windows and Linux CI logs inspected:
+- `SYNTHETIC_REQUIRED_EXISTING_OAUTH_STARTUP_GATE_PASS`:
+  an actual compiled CLI child cannot open an HTTP listener,
+  write project state, or generate empty OAuth state if
+  a migrated `--require-existing-oauth-state` document
+  is missing. String 'false', non-HTTP misuse and missing
+  owner token denied. New legitimate first-time enrollment
+  remains unaffected when opt-in absent.
+- `SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS
+  cases=52 negativeCases=50 positiveFixtures=2`:
+  future cutover policy now rejects an unproven
+  candidate existing-OAuth startup gate.
+- `SYNTHETIC_GOAL_CROSS_PROCESS_INTENT_EXCLUSION_PASS`:
+  12 independent synthetic children, 4 ON intent wins,
+  9 stale/busy denials, NO real user-turn attestation.
+- `SYNTHETIC_OAUTH_CROSS_PROCESS_WRITER_EXCLUSION_PASS`:
+  4 rounds of 3 independent writers, 24 mock clients
+  per round preserved; old v0.2.0 still ignores lock.
+- `ISOLATED_STATE_CLI_FAIL_CLOSED_PASS`:
+  the earlier Windows test expected empty state directory
+  BEFORE rejecting missing owner token; its stronger
+  NO-WRITE expectation is now independently verified.
+- `DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=3480`
+  for CI-hosted uninstalled Windows stage package.
+
+The intermediate Windows CI failures
+`41368938671` and `41368999340` came from the
+outdated test expectation; source code security was not
+reverted to pass it. `40a1090e...` fixes the test
+to assert the stricter behavior. This receipt is not
+owner-machine deployment, provider native ordinary
+Project CHAT event or automatic rollover evidence.
+
+**State:** PR #1 remains DRAFT/UNMERGED, original
+installed 7979 and isolated stage 7987 remain untouched,
+no scheduler/Startup/OAuth token/real browser effects,
+no public connector reconsent, no owner production
+cutover. Provider-attested normal ChatGPT consumer
+CHAT limit and same-Project successor still missing.
+ACTUAL research GOAL cycles 0, unattended rollovers 0/2.
+Next requires independently approved exact deployed
+watchdog/launcher/WScript/Startup provenance,
+private OAuth issuer/client state backup, owner
+reversible one-writer migration approval, then
+real provider event/successor proof if supported.
+
+---
+
+
 ## 2026-11-02 KST — NEXT PHASE: RESTART-PROOF EXISTING OAUTH PRE-FLIGHT (SOURCE ONLY)
 
 **User-directed manual continuation** of a single-original-MCP
