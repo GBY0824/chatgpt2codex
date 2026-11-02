@@ -23,6 +23,8 @@ export interface GoalProcessHostConfig {
   scriptSha256: string;
   /** Explicit owner-provisioned IPC key, NEVER OAuth bearer or owner token. */
   bridgeKeyFile: string;
+  /** Explicit canonical GoalEventEngine state under the research staging root. */
+  engineStateFile: string;
 }
 
 const allowedReadiness = new Set<GoalAppReadinessCode>([
@@ -35,9 +37,12 @@ const allowedReadiness = new Set<GoalAppReadinessCode>([
 async function pinnedScript(config: GoalProcessHostConfig): Promise<void> {
   const root = path.resolve(config.projectRoot);
   const script = path.resolve(config.script);
+  const engineState = path.resolve(config.engineStateFile);
   if (!path.isAbsolute(config.projectRoot) || !path.isAbsolute(config.script)
       || !path.isAbsolute(config.executable) || !path.isAbsolute(config.stateDir)
       || !path.isAbsolute(config.bridgeKeyFile)
+      || !path.isAbsolute(config.engineStateFile)
+      || !engineState.startsWith(path.join(root, "staging") + path.sep)
       || path.resolve(config.bridgeKeyFile) !== path.join(path.resolve(config.stateDir), "goal-process-bridge.key")
       || !/^[a-f0-9]{64}$/.test(config.scriptSha256)
       || !script.startsWith(root + path.sep)) {
@@ -87,7 +92,7 @@ async function deliver(
   const envelope = JSON.stringify({ schema: 1, body, signature }) + "\n";
   if (Buffer.byteLength(envelope) > 4096) throw new Error("GOAL_PROCESS_HOST_ENVELOPE_TOO_LARGE");
   return await new Promise<GoalAppReadinessCode>((resolve, reject) => {
-    const child = spawn(config.executable, [config.script], {
+    const child = spawn(config.executable, [config.script, "--engine-state-file", config.engineStateFile], {
       cwd: config.projectRoot, shell: false,
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
