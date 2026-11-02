@@ -1,5 +1,84 @@
 # One-MCP integration gates — production 7979, review 7987
 
+## 2026-11-02 — Registered OAuth client set integrity is REQUIRED
+
+**Newly verified source gap:** a valid `oauth.json` document with
+`clients: []` satisfied the existing-file/syntax check despite
+not preserving ANY ChatGPT OAuth client registrations. The
+candidate-only `--require-existing-oauth-state` path now also
+refuses zero registered clients with
+`OAUTH_REQUIRED_CLIENT_REGISTRATIONS_MISSING`, while
+normal first-time OAuth enrollment (without the flag)
+remains allowed. This does **not** establish equivalence of
+nonempty old/new registered-client IDs or issuer/resource.
+Those still require separate PRIVATE owner-pinned evidence.
+
+- Candidate store: `79d0f555817fa407f4c3108893bce86f6feac93a`
+- Disposable unit tests: `e3be66509cd5cb5bdc252c3cd5e409e2e59a8392`
+- Compiled CLI synthetic check: `65ce55c31ab61ca4444c5416041f48df44826476`
+  [Actions 41384713762](https://github.com/GBY0824/chatgpt2codex/actions/runs/41384713762):
+  **COMPLETED SUCCESS Linux/Windows/macOS 3/3**, including
+  native Windows `emptyClientRegistrationsRejected:true`,
+  independent candidate OAuth writer regression, and
+  3,480-file staged archive integrity.
+
+**Read-only preflight alignment:** existing
+`scripts/inspect-oauth-state-readonly.mjs` incorrectly reported
+`AUTH_STATE_READONLY_STRUCTURAL_GATE_PASS` for a valid
+but empty client list (a vacuous structural check).
+`d3b9e609409da52c23c0a2f074a749eea1676f75`
+now returns a *blocked* result
+`AUTH_STATE_READONLY_NO_REGISTERED_CLIENTS`;
+the synthetic fixture at `4d3c8530cc7f942b2a13c37ab1bbad7d07e41784`
+checks zero clients, structurally valid nonempty
+client, foreign issuer resource, and mismatched client ID
+without printing or modifying real owner data. It is
+wired into Linux/Windows CI at `f4eb909f295d0d5f963a611dd7da16067be35c39`.
+
+**Migration plan refusal** at
+`7f16c85c040f870b88a4be2cfc6429743412ddc5`:
+the synthetic cutover plan must prove both an integer
+`candidateRegisteredClientCount >= 1` and literal
+`oldAndNewRegisteredClientSetsPrivatelyMatched === true`,
+plus the existing issuer/state identity, independent
+verified backup and single-writer safeguards.
+This is policy validation on fake values, **not** a
+completed private client-ID comparison or permission
+to migrate production OAuth state.
+
+**Fresh owner Windows read-only metadata (NO TASK CHANGE):**
+- `7979`: one listener; isolated `7987`: one listener.
+- `ChatGPT To Codex MCP - Tailscale`: Running, one
+  action, one enabled trigger, RestartCount 5,
+  RestartInterval PT1M, IgnoreNew instances.
+- `ChatGPTToCodexEmergent-Watchdog`: Ready, one action,
+  two enabled triggers, IgnoreNew.
+- `ChatGPTToCodexMcpSelfHealing`: Ready, one action,
+  two enabled triggers, IgnoreNew.
+- `ChatGPTToCodexOAuthGuard`: Disabled at task level
+  with two configured enabled triggers, IgnoreNew.
+No arguments, script bytes, process command lines,
+credentials or stored OAuth contents were read.
+This is NOT proof of every independent relaunch mode;
+it does establish why stopping only the main task
+could leave other supervisors eligible to run.
+A previous detailed owner AST request was DENIED and
+was NOT bypassed.
+
+**No live cutover:** original v0.2.0 on 7979
+does not honor the candidate OAuth writer lock,
+and the installed watchdog differs from historical
+GitHub research watcher. Owner must approve reversible
+quiescence, verify launcher/watcher/WScript/Startup
+roles privately and pin actual OAuth client set and
+issuer continuity before any task/installer/credential
+mutation. Normal ChatGPT Project CHAT unattended
+context-limit and successor attestation not proven.
+Actual research GOAL effects 0; automatic rollover 0/2.
+
+---
+
+
 ## 2026-11-02 — COLD-START OAuth continuity gate (source-only, not deployed)
 
 The original v0.2.0 and the upgraded candidate **MUST NEVER write
