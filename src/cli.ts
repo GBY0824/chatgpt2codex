@@ -213,6 +213,15 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
   if (requireExistingOAuthState) {
     await new JsonOAuthStore(stateDir, true).assertReadable();
   }
+  // Reject invalid Stage diagnostic opt-in BEFORE any project/state writes.
+  if (flags["goal-readonly-stage-check"] !== undefined &&
+      flags["goal-readonly-stage-check"] !== true) {
+    throw new Error("GOAL_READONLY_STAGE_FLAG_MUST_BE_BOOLEAN");
+  }
+  if (flags["goal-readonly-stage-check"] === true &&
+      (typeof flags.workspace !== "string" || !path.isAbsolute(flags.workspace))) {
+    throw new Error("GOAL_READONLY_STAGE_ABSOLUTE_WORKSPACE_REQUIRED");
+  }
   // Do not mutate the registry/ledger merely because a server without its
   // owner token was started. A required pre-existing OAuth document is checked
   // FIRST, then the existing owner token, only then the project state.
@@ -224,17 +233,8 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
     return;
   }
   const ctx = await buildToolContext(workspace, stateDir);
-  // Owner-selected, explicitly opt-in STAGE READ ONLY diagnostic.
-  // It is never an automatic P3 permit, GoalEventEngine worker or
-  // ordinary ChatGPT Project CHAT provider-attestation bridge.
-  if (flags["goal-readonly-stage-check"] !== undefined &&
-      flags["goal-readonly-stage-check"] !== true) {
-    throw new Error("GOAL_READONLY_STAGE_FLAG_MUST_BE_BOOLEAN");
-  }
+  // Owner-opt-in, read-only Stage diagnostic only; no P3/Stage authority.
   if (flags["goal-readonly-stage-check"] === true) {
-    if (typeof flags.workspace !== "string" || !path.isAbsolute(flags.workspace)) {
-      throw new Error("GOAL_READONLY_STAGE_ABSOLUTE_WORKSPACE_REQUIRED");
-    }
     ctx.goalAppNoticeHost = createGoalStageReadOnlyHost(workspace);
   }
 
