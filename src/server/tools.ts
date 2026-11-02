@@ -950,6 +950,7 @@ export function registerTools(server: unknown, ctx: ToolContext): void {
         try {
           const value = await goalAppCommand(
             ctx.stateDir, input, extra.authInfo, ctx.remote === true,
+            ctx.goalAppNoticeHost,
           );
           return makeResult(value, `GOAL app intent: ${String(value.code)}`);
         } catch (error) {
