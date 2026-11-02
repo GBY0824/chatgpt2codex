@@ -15,6 +15,7 @@ on:
       - "scripts/verify-oauth-writer-lock.mjs"
       - "scripts/verify-goal-intent-cross-process.mjs"
       - "scripts/verify-required-existing-oauth-startup.mjs"
+      - "scripts/verify-goal-stage-cli-preflight.mjs"
       - "scripts/inspect-oauth-state-readonly.mjs"
       - "scripts/verify-oauth-readonly-migration-clients.mjs"
       - "scripts/compare-oauth-state-readonly.mjs"
@@ -64,6 +65,8 @@ jobs:
         run: node scripts/verify-goal-intent-cross-process.mjs .
       - name: Existing OAuth migration startup fail-closed before any writes or socket bind
         run: node scripts/verify-required-existing-oauth-startup.mjs .
+      - name: GOAL read-only Stage host compiled CLI fails closed before any writes
+        run: node scripts/verify-goal-stage-cli-preflight.mjs .
       - name: Read-only OAuth migration client and issuer continuity (synthetic only)
         run: node scripts/verify-oauth-readonly-migration-clients.mjs .
       - name: Private baseline-and-candidate OAuth state continuity comparison (synthetic only)
@@ -307,6 +310,8 @@ jobs:
         run: node scripts/verify-goal-intent-cross-process.mjs .
       - name: Windows existing OAuth startup fail-closed before writes or socket bind
         run: node scripts/verify-required-existing-oauth-startup.mjs .
+      - name: Windows GOAL read-only Stage host compiled CLI startup refusal
+        run: node scripts/verify-goal-stage-cli-preflight.mjs .
       - name: Windows read-only OAuth migration client and issuer continuity (synthetic only)
         run: node scripts/verify-oauth-readonly-migration-clients.mjs .
       - name: Windows private baseline-and-candidate OAuth continuity comparison (synthetic only)
