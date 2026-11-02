@@ -60,14 +60,27 @@ function validateCaller(caller: VerifiedAppCaller | undefined, remote: boolean):
 }
 
 async function loadState(filename: string): Promise<IntentState> {
-  let raw: string;
+  // Only a missing file at the INITIAL stat is a fresh ledger. If it
+  // disappears between stat and read, fail closed: never silently reset
+  // an existing OFF revocation fence to revision zero.
+  let entry: import("node:fs").Stats;
   try {
-    const stat = await fs.stat(filename);
-    if (stat.size > MAX_BYTES) throw new GoalAppCommandError("APP_GOAL_LEDGER_OVERSIZED");
-    raw = await fs.readFile(filename, "utf8");
+    entry = await fs.stat(filename);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { ...INITIAL };
-    throw error;
+    throw new GoalAppCommandError("APP_GOAL_LEDGER_READ_FAILED");
+  }
+  if (!entry.isFile()) throw new GoalAppCommandError("APP_GOAL_LEDGER_READ_FAILED");
+  if (entry.size > MAX_BYTES) throw new GoalAppCommandError("APP_GOAL_LEDGER_OVERSIZED");
+  let raw: string;
+  try {
+    raw = await fs.readFile(filename, "utf8");
+  } catch {
+    throw new GoalAppCommandError("APP_GOAL_LEDGER_READ_FAILED");
+  }
+  // A simultaneous writer may enlarge a file AFTER the initial stat.
+  if (Buffer.byteLength(raw, "utf8") > MAX_BYTES) {
+    throw new GoalAppCommandError("APP_GOAL_LEDGER_OVERSIZED");
   }
   let value: unknown;
   try { value = JSON.parse(raw); }
