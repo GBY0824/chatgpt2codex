@@ -43,6 +43,9 @@ export interface HttpServerConfig {
     scopes: string[];
     allowedRedirectHosts: string[];
   };
+  /** Fail closed when a previously migrated OAuth store is missing.
+   * Must be enabled explicitly for an owner-approved single-writer cutover. */
+  requireExistingOAuthState?: boolean;
   /** Idle TTL for a session transport before it is evicted (NFR-03). */
   sessionTtlMs: number;
   /** Hard cap on concurrently tracked session transports (SR-09/NFR-03). */
@@ -220,7 +223,9 @@ export function createHttpServer(ctx: ToolContext, config: HttpServerConfig): Ru
         hasClientName: event.clientName !== undefined,
       }),
   };
-  const oauthProvider = new SingleUserOAuthProvider(oauthConfig, mcpUrl, ctx.stateDir);
+  const oauthProvider = new SingleUserOAuthProvider(
+    oauthConfig, mcpUrl, ctx.stateDir, config.requireExistingOAuthState === true,
+  );
   const oauthMetadata = createOAuthMetadata({
     provider: oauthProvider,
     issuerUrl: publicUrl,
