@@ -63,6 +63,7 @@ try {
   assert.equal(same.registeredClientSetMatches, true);
   assert.equal(same.refreshTokenRecordsMatch, true);
   assert.equal(same.ownerTokenRecordMatches, true);
+  assert.equal(same.oauthDocumentMetadataMatches, true);
   assert.equal(compare(original,original).status,1);
   assert.equal(compare(original,original).code,
     "OAUTH_PRIVATE_CONTINUITY_SAME_OR_NESTED_STATE_DENIED");
@@ -99,6 +100,37 @@ try {
   assert.equal(zeroClients.status,1);
   assert.equal(zeroClients.code,"OAUTH_PRIVATE_CONTINUITY_RECORDS_INVALID");
 
+  await writeBoth(copied, owner, {...oauth, updatedAt:oauth.updatedAt+1});
+  const changedMetadata=compare();
+  assert.equal(changedMetadata.status,1);
+  assert.equal(changedMetadata.code,"OAUTH_PRIVATE_CONTINUITY_MISMATCH_DENIED");
+  assert.equal(changedMetadata.oauthDocumentMetadataMatches,false);
+  assert.equal(changedMetadata.registeredClientSetMatches,true);
+
+  await writeBoth(copied, owner, {...oauth,
+    syntheticHiddenField:"SYNTHETIC-CONFLICT-NOT-LOGGED"});
+  const extraDocument=compare();
+  assert.equal(extraDocument.status,1);
+  assert.equal(extraDocument.code,"OAUTH_PRIVATE_CONTINUITY_RECORDS_INVALID");
+
+  await writeBoth(copied, {...owner,
+    fakeAdditionalOwnerField:"SYNTHETIC-HIDDEN-OWNER"},oauth);
+  const extraOwner=compare();
+  assert.equal(extraOwner.status,1);
+  assert.equal(extraOwner.code,"OAUTH_PRIVATE_CONTINUITY_RECORDS_INVALID");
+
+  await writeBoth(copied, owner, {...oauth,
+    clients:[{...client, syntheticUndeclaredFlag:true}]});
+  const extraClient=compare();
+  assert.equal(extraClient.status,1);
+  assert.equal(extraClient.code,"OAUTH_PRIVATE_CONTINUITY_RECORDS_INVALID");
+
+  await writeBoth(copied, owner, {...oauth,
+    refreshTokens:[{...oauth.refreshTokens[0], unknownExtraTokenField:true}]});
+  const extraToken=compare();
+  assert.equal(extraToken.status,1);
+  assert.equal(extraToken.code,"OAUTH_PRIVATE_CONTINUITY_RECORDS_INVALID");
+
   await writeBoth(copied);
   const unchanged = await Promise.all(filenames.map(
     name => readFile(path.join(original,name),"utf8")
@@ -113,6 +145,8 @@ try {
     ownerTokenChangeDenied:true,
     foreignResourceDenied:true,
     emptyClientStateDenied:true,
+    oauthMetadataDriftDenied:true,
+    hiddenDocumentAndClientTokenFieldsDenied:true,
     realOwnerStateRead:false,
     noPrivateIdentifiersPrinted:true,
     productionCutoverAuthorized:false,
