@@ -99,6 +99,30 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
       .toBe(initialClient.client_id);
   });
 
+  it("refuses syntactically valid but empty OAuth client records during a preserving migration", async () => {
+    const file = oauthFile();
+    const noClients = JSON.stringify({
+      version: 1, updatedAt: 0, clients: [], accessTokens: [], refreshTokens: [],
+    });
+    await writeFile(file, noClients, "utf8");
+    const migrated = new JsonOAuthStore(dir, true);
+    await expect(migrated.assertReadable())
+      .rejects.toThrow("OAUTH_REQUIRED_CLIENT_REGISTRATIONS_MISSING");
+    await expect(migrated.assertWritable())
+      .rejects.toThrow("OAUTH_REQUIRED_CLIENT_REGISTRATIONS_MISSING");
+    await expect(migrated.registerClient(basicClient, []))
+      .rejects.toThrow("OAUTH_REQUIRED_CLIENT_REGISTRATIONS_MISSING");
+    await expect(migrated.saveTokenPair(pair))
+      .rejects.toThrow("OAUTH_REQUIRED_CLIENT_REGISTRATIONS_MISSING");
+    expect(await readFile(file, "utf8")).toBe(noClients);
+    // A brand-new first-time installation may still enroll into a fresh
+    // empty document when the opt-in migration mode was NOT enabled.
+    const fresh = new JsonOAuthStore(dir);
+    const registered = await fresh.registerClient(basicClient, []);
+    expect((await migrated.getClient(registered.client_id))?.client_id)
+      .toBe(registered.client_id);
+  });
+
   it("does not forget required existing OAuth state even after server restart", async () => {
     const owner = await store.registerClient(basicClient, []);
     await store.saveTokenPair(pair);
