@@ -53,6 +53,7 @@ async function fixture() {
   const research = path.join(root, "research");
   const state = path.join(root, "state");
   await mkdir(research); await mkdir(state);
+  await mkdir(path.join(research,"staging"));
   const bridgeKeyFile=path.join(state,"goal-process-bridge.key");
   await writeFile(bridgeKeyFile,randomBytes(32));
   const script = path.join(research, "trusted-host.mjs");
@@ -60,7 +61,7 @@ async function fixture() {
   const cfg: GoalProcessHostConfig = {
     projectRoot: research, stateDir: state, executable: process.execPath,
     script, scriptSha256: createHash("sha256").update(adapter).digest("hex"),
-    bridgeKeyFile,
+    bridgeKeyFile, engineStateFile:path.join(research,"staging","goal-engine-state.json"),
   };
   return {root, research, state, script, cfg};
 }
