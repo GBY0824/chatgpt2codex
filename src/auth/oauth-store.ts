@@ -102,6 +102,20 @@ function redirectHostAllowed(redirectUri: string, allowedHosts: string[]): boole
 }
 
 /**
+ * On Windows, concurrent exclusive file opens may surface EACCES/EPERM
+ * instead of EEXIST while another candidate writer owns the lock.
+ * Retry ONLY when that specific lock pathname is independently observed
+ * as a regular file. Unknown errno, missing paths and directories are
+ * actual I/O failures, never permission to assume an OAuth writer claim.
+ */
+export function isVerifiedOAuthWriterContention(
+  errno: string | undefined, platform: NodeJS.Platform, lockFileObserved: boolean,
+): boolean {
+  return errno === "EEXIST" ||
+    (platform === "win32" && lockFileObserved && (errno === "EACCES" || errno === "EPERM"));
+}
+
+/**
  * JSON-file backed OAuth store: registered clients + access/refresh tokens.
  * All mutating operations are serialized through an in-process mutex so
  * concurrent tool/HTTP handlers never interleave a read-modify-write cycle
@@ -141,7 +155,16 @@ export class JsonOAuthStore {
         handle = await open(this.writerLockPath, "wx", FILE_MODE);
         break;
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        const errno = (error as NodeJS.ErrnoException).code;
+        let fileObserved = false;
+        if (process.platform === "win32" && (errno === "EACCES" || errno === "EPERM")) {
+          try {
+            fileObserved = (await lstat(this.writerLockPath)).isFile();
+          } catch {
+            // No verified existing regular lock: preserve the I/O failure.
+          }
+        }
+        if (!isVerifiedOAuthWriterContention(errno, process.platform, fileObserved)) {
           throw new Error("OAUTH_WRITE_LOCK_IO_FAILED", { cause: error });
         }
         if (Date.now() >= deadline) {
