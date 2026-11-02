@@ -29,12 +29,33 @@ describe("OAuth-scoped APP intent — NOT ChatGPT provider turn or research auth
     expect(await call(d, "ON", 1)).toMatchObject({ code: "APP_GOAL_REVISION_STALE", requestedMode: "OFF" });
     expect(await call(d, "status")).toMatchObject({ requestedMode: "OFF", revision: 2 });
   });
-  it("does not treat repeated ON as new work, OFF increments revision", async () => {
+  it("does not rewrite the ledger or rotate commandId for duplicate ON", async () => {
     const d = await dir();
+    const file = path.join(d, "goal-app-command-intent.json");
     expect((await call(d, "ON", 0)).revision).toBe(1);
-    expect((await call(d, "ON", 1)).revision).toBe(1);
-    await call(d, "OFF");
-    expect((await call(d, "OFF")).revision).toBe(3);
+    const initial = await readFile(file, "utf8");
+    const id = JSON.parse(initial).lastCommandId;
+    expect(typeof id).toBe("string");
+    const duplicate = await call(d, "ON", 1);
+    expect(duplicate).toMatchObject({
+      code: "APP_GOAL_ALREADY_ON_NO_REPLAY",
+      revision: 1, effectsIssued: 0,
+      researchExecutionAuthorized: false,
+      originalChatTurnAttested: false,
+    });
+    expect(await readFile(file, "utf8")).toBe(initial);
+    expect(JSON.parse(await readFile(file, "utf8")).lastCommandId).toBe(id);
+    const stale = await call(d, "ON", 0);
+    expect(stale.code).toBe("APP_GOAL_REVISION_STALE");
+    expect(await readFile(file, "utf8")).toBe(initial);
+    const off = await call(d, "OFF");
+    expect(off.revision).toBe(2);
+    const afterOff = await readFile(file, "utf8");
+    expect(afterOff).not.toBe(initial);
+    const reOn = await call(d, "ON", 2);
+    expect(reOn.revision).toBe(3);
+    expect(reOn.code).toBe("APP_GOAL_INTENT_RECORDED_ONLY");
+    expect(JSON.parse(await readFile(file, "utf8")).lastCommandId).not.toBe(id);
   });
   it("requires verified remote OAuth bearer + dedicated scope", async () => {
     const d = await dir();
