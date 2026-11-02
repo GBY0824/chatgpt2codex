@@ -10,6 +10,7 @@ const baseline = {
   code: "OAUTH_PRIVATE_CONTINUITY_UNVERIFIED",
   bothDocumentsValid: false, nonemptyRegisteredClients: false,
   registeredClientSetMatches: false, registeredClientDetailsMatch: false,
+  oauthDocumentMetadataMatches: false,
   ownerTokenRecordMatches: false, accessTokenRecordsMatch: false,
   refreshTokenRecordsMatch: false, persistedResourcesMatchPin: false,
   oldWriterQuiescenceVerified: false, externallyPinnedSnapshotVerified: false,
@@ -25,6 +26,10 @@ const args = process.argv.slice(2);
 const hex43 = x => typeof x === "string" && /^[A-Za-z0-9_-]{43}$/.test(x);
 const integer = x => Number.isSafeInteger(x) && x >= 0;
 const record = x => x !== null && typeof x === "object" && !Array.isArray(x);
+function exactKeys(obj, keys, optional = []) {
+  return record(obj) && Object.keys(obj).every(k => keys.includes(k) || optional.includes(k)) &&
+    keys.every(k => Object.prototype.hasOwnProperty.call(obj, k));
+}
 function stable(value) {
   if (Array.isArray(value)) return "[" + value.map(stable).join(",") + "]";
   if (record(value)) return "{" + Object.keys(value).sort().map(
@@ -41,14 +46,19 @@ function sortedBy(items, key) {
   return [...items].sort((a, b) => String(a[key]).localeCompare(String(b[key]), "en"));
 }
 function validate(owner, oauth) {
-  if (!record(owner) || owner.version !== 1 || !integer(owner.createdAt) ||
-      !hex43(owner.tokenHash) || !record(oauth) ||
+  // Unknown fields must not be silently excluded from the comparison.
+  // The existing source writer emits precisely these persisted fields.
+  if (!exactKeys(owner, ["version", "createdAt", "tokenHash"]) ||
+      owner.version !== 1 || !integer(owner.createdAt) ||
+      !hex43(owner.tokenHash) ||
+      !exactKeys(oauth, ["version", "updatedAt", "clients", "accessTokens", "refreshTokens"]) ||
       oauth.version !== 1 || !integer(oauth.updatedAt) ||
       !Array.isArray(oauth.clients) || !Array.isArray(oauth.accessTokens) ||
       !Array.isArray(oauth.refreshTokens)) return false;
   const clients = oauth.clients;
   if (clients.length < 1 || clients.length > 100000 ||
-      !clients.every(c => record(c) && typeof c.clientId === "string" &&
+      !clients.every(c => exactKeys(c, ["clientId", "clientJson", "issuedAt"]) &&
+        typeof c.clientId === "string" &&
         c.clientId.length > 0 && record(c.clientJson) &&
         c.clientJson.client_id === c.clientId &&
         Array.isArray(c.clientJson.redirect_uris) &&
@@ -58,7 +68,8 @@ function validate(owner, oauth) {
   const idSet = new Set(clients.map(c => c.clientId));
   const tokens = [...oauth.accessTokens, ...oauth.refreshTokens];
   return tokens.length <= 200000 &&
-    tokens.every(t => record(t) && hex43(t.tokenHash) &&
+    tokens.every(t => exactKeys(t, ["tokenHash", "clientId", "scopes", "expiresAt"],
+      ["resource"]) && hex43(t.tokenHash) &&
       idSet.has(t.clientId) && Array.isArray(t.scopes) &&
       t.scopes.every(s => typeof s === "string" && s.length > 0) &&
       integer(t.expiresAt) &&
@@ -131,18 +142,23 @@ try {
           const clientDetails = equal(sortedBy(a.clients, "clientId"),
             sortedBy(b.clients, "clientId"));
           const ownerMatch = equal(ownerA, ownerB);
+          const metadataMatch = equal(
+            { version: a.version, updatedAt: a.updatedAt },
+            { version: b.version, updatedAt: b.updatedAt },
+          );
           const accessMatch = equal(sortedBy(a.accessTokens, "tokenHash"),
             sortedBy(b.accessTokens, "tokenHash"));
           const refreshMatch = equal(sortedBy(a.refreshTokens, "tokenHash"),
             sortedBy(b.refreshTokens, "tokenHash"));
           const identical = resourcesMatch && idMatch && clientDetails &&
-            ownerMatch && accessMatch && refreshMatch;
+            metadataMatch && ownerMatch && accessMatch && refreshMatch;
           emit({
             code: identical ? "OAUTH_PRIVATE_CONTINUITY_STRUCTURAL_MATCH" :
               "OAUTH_PRIVATE_CONTINUITY_MISMATCH_DENIED",
             bothDocumentsValid: true, nonemptyRegisteredClients: true,
             registeredClientSetMatches: idMatch,
             registeredClientDetailsMatch: clientDetails,
+            oauthDocumentMetadataMatches: metadataMatch,
             ownerTokenRecordMatches: ownerMatch,
             accessTokenRecordsMatch: accessMatch,
             refreshTokenRecordsMatch: refreshMatch,
