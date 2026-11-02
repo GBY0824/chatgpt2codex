@@ -1,5 +1,110 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — ACTUAL GOAL INGRESS LINK IN ORIGINAL MCP SOURCE, P4 STILL BLOCKED
+
+**Real goal acceptance progress:** autonomous research cycle
+**0/1** and genuinely unattended ordinary ChatGPT
+Project CHAT successor **0/2**. No made-up percentage
+from synthetic CI. User urgently requests GOAL-first.
+This is a **SOURCE-LEVEL** integration advance,
+NOT live deployed goal or automatic CHAT turnover.
+
+**Current Windows owner PC read-only verification:**
+using connected `ChatGPT To Codex 2`,
+`project_select(freqtrade-mcp, tests-only)`, bounded
+`python -B tools/runtime_vnext/goal_control_mcp/server.py --readiness`
+returned exit=0, `GOAL_READINESS_BLOCKED`.
+Stage `P3 COMPLETE`, `P4R ACTIVE`, `P4 PENDING`,
+`P9 BLOCKED_UNTIL_SYSTEM_COMPLETE`, Chrome
+`fresh_self_reported=true` but
+`provider_authenticated=false`.
+`goal_execution_authorized=false`,
+`effects_issued=0`, accepted unattended rollover 0/2.
+Explicit blockers `P4_NOT_ACTIVE`,
+`OFFICIAL_CONSUMER_CHAT_TURN_ATTESTOR_UNAVAILABLE`;
+one other diagnostic connector-redacted, NOT reconstructed.
+Read-only only. This is not a mock nor a P3 owner permit.
+GitHub research `docs/CURRENT_SYSTEM_STAGE.json`
+still explicitly selects P4R over P4, and cannot
+be silently overridden without original Stage/
+P3 owner authority and current execution-state proof.
+
+**Concrete original MCP GOAL app source fixes:**
+- `src/server/goal-app-intent.ts` commit
+  `3dfd7b893a12dff5fa633e387df2f65647c8db09`:
+  a repeated ON at the SAME authorized revision
+  no longer rewrites ledger or rotates command ID,
+  returning `APP_GOAL_ALREADY_ON_NO_REPLAY`.
+  Tests `7d03c77c41cdd3e50718f7dad5bc3140bb69a586`,
+  exact [CI 41390481173](https://github.com/GBY0824/chatgpt2codex/actions/runs/41390481173)
+  **COMPLETED 3/3** Linux, native Windows, macOS,
+  50/50 focused Linux tests PASS.
+- Same original MCP now exposes an **optional post-commit
+  APP event callback**, **NOT a second MCP or a research worker**:
+  `src/server/goal-app-intent.ts` commit
+  `5b9ef83be43a712eba8ffad7c4e7c58872757e64`
+  defines `PersistedGoalAppNotice`/
+  `GoalAppNoticeHost` and invokes only after
+  server-verified scoped app ON/OFF was durably saved
+  and the exclusive writer lock released.
+  Client ID represented as an opaque SHA256 fingerprint,
+  not a leaked token or user ChatGPT identity.
+  Event explicitly marks
+  `originalChatTurnAttested=false`,
+  `researchExecutionAuthorized=false`.
+  Duplicate ON has no callback; failure reports
+  `APP_GOAL_NOTICE_UNVERIFIED_RECONCILIATION_REQUIRED`
+  without deleting persisted OFF or pretending a
+  new research effect happened; OFF can commit
+  during an earlier asynchronous ON notice.
+- `src/types.ts` `282d148a89d6adbc0844960f0a19bd70d4c8b623`
+  declares `ToolContext.goalAppNoticeHost`
+  **OPTIONAL / DISABLED BY DEFAULT**.
+  `src/server/tools.ts`
+  `801642fd02b3ca6ebe670b4a46852acf9395e217`
+  passes that callback from the existing registered
+  `goal_app_command` after authenticating the
+  remote app scope.
+- Vitest in `src/server/goal-app-intent.test.ts`
+  commit `b2ff3c73273c067c2f703fdaca1b26801c5e6eb6`
+  tests actual notification, duplicated ON no replay,
+  failed notification + persisted OFF, and concurrent
+  OFF while host is waiting. **No real host injected yet**.
+  [CI 41391113493](https://github.com/GBY0824/chatgpt2codex/actions/runs/41391113493)
+  Linux source/typecheck+tests and macOS controls
+  COMPLETED SUCCESS, Windows GOAL/app OAuth and
+  source build steps SUCCESS; full Windows archive
+  was IN PROGRESS on initial receipt.
+  Recheck exact job 3/3 before claiming it.
+
+**Blocked next functional hop (not a safety test task):**
+a separately authenticated trusted host must
+consume APP notices, check the **actual** GOAL ledger,
+P4 Stage approval, P3 one-use system work permit and
+original research writer before it can enter the existing
+research `GoalEventEngine` and official GitHub curator.
+ON/OFF app scope **cannot** be treated as original
+consumer user-turn attestation. Currently the
+optional host callback is NOT configured anywhere,
+which is why no actual GOAL research cycle started.
+Never use a fake `work_authorizer=lambda: True`,
+new timer, extra MCP install, or silently changed Stage
+to make the tests green. User approval for live
+reversible old 7979 single-writer/OAuth cutover
+remains needed; installed old v0.2.0 ignores
+new OAuth writer lock. No live service, OAuth tokens,
+Windows tasks/Startup, Chrome or protected Stage changed.
+
+**Research main handoff also UPDATED** in
+`GBY0824/freqtrade-mcp-research`
+`docs/CURRENT_RESEARCH_HANDOFF.md`, commit
+`443f5a4af51c350f1ed4ea272a4288b9a4cd8b48`.
+This current draft fork full handoff and Issue #2
+remain the cross-chat state of record.
+
+---
+
+
 ## 2026-11-02 KST — GOAL FIRST: LIVE WINDOWS READINESS BLOCK + DUPLICATE ON FIX
 
 **Owner's current instruction:** stop treating source-only safety test counts as
