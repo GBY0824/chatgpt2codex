@@ -129,6 +129,25 @@ export function isRetryableWindowsOAuthOpenDenial(
 }
 
 /**
+ * Deterministic decision for a failed attempt to create the exclusive writer
+ * lock. The caller is NEVER permitted to write oauth.json unless the real
+ * operating-system wx open has returned an owned handle.
+ *
+ * "retry" merely repeats that exclusive open, not the OAuth transaction.
+ * An unobserved Windows EPERM/EACCES stays an I/O failure at the deadline;
+ * only known busy/stale lock conditions receive a busy classification.
+ */
+export function decideOAuthExclusiveOpenFailure(
+  errno: string | undefined, platform: NodeJS.Platform,
+  regularLockObserved: boolean, deadlineExpired: boolean,
+): "retry" | "busy" | "io-failed" {
+  const busy = isVerifiedOAuthWriterContention(errno, platform, regularLockObserved);
+  if (!busy && !isRetryableWindowsOAuthOpenDenial(errno, platform)) return "io-failed";
+  if (!deadlineExpired) return "retry";
+  return busy ? "busy" : "io-failed";
+}
+
+/**
  * JSON-file backed OAuth store: registered clients + access/refresh tokens.
  * All mutating operations are serialized through an in-process mutex so
  * concurrent tool/HTTP handlers never interleave a read-modify-write cycle
@@ -177,16 +196,13 @@ export class JsonOAuthStore {
             // No verified existing regular lock: preserve the I/O failure.
           }
         }
-        const knownBusy = isVerifiedOAuthWriterContention(errno, process.platform, fileObserved);
-        const windowsTransient = isRetryableWindowsOAuthOpenDenial(errno, process.platform);
-        if (!knownBusy && !windowsTransient) {
+        const decision = decideOAuthExclusiveOpenFailure(
+          errno, process.platform, fileObserved, Date.now() >= deadline,
+        );
+        if (decision === "io-failed") {
           throw new Error("OAUTH_WRITE_LOCK_IO_FAILED", { cause: error });
         }
-        if (Date.now() >= deadline) {
-          // Only a *verified* existing claim can be called busy/stale.
-          // A missing/unreadable Windows path with persistent EPERM/EACCES
-          // is still a real I/O failure, never proof of lock ownership.
-          if (!knownBusy) throw new Error("OAUTH_WRITE_LOCK_IO_FAILED", { cause: error });
+        if (decision === "busy") {
           throw new Error("OAUTH_WRITE_LOCK_BUSY_OR_STALE");
         }
         // Re-attempt OS-enforced exclusive wx creation; no read/modify/write
