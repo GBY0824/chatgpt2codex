@@ -1,5 +1,80 @@
 # One-MCP integration gates — production 7979, review 7987
 
+## 2026-11-02 — Executable PRIVATE old/new OAuth equality check (NOT deployment)
+
+The prior cutover gate `oldAndNewRegisteredClientSetsPrivatelyMatched`
+was a Boolean policy assertion, not an actual file comparison.
+That is insufficient: an unrelated, syntactically valid
+`oauth.json` with one client can satisfy the minimum count.
+A new **read-only, candidate-source** utility now compares
+two pre-existing, distinctly rooted state directories:
+
+`node scripts/compare-oauth-state-readonly.mjs <baseline-root> <candidate-root> <pinned-resource-mcp-url>`
+
+**Safety contract:** No automatic capture, copy, modification,
+OAuth rotation, process stop, task change or port bind.
+Private OAuth records and client IDs stay in local process
+memory; stdout contains Boolean results only, with no
+identifiers, hashes or full paths. Both directories must
+exist, be absolute, separate/not nested and free of symlink
+or junction ancestors; documents must be bounded regular
+files stable through a read. Structurally validates
+`owner-token.json` and `oauth.json`, requires nonempty
+client registration and unique client/token keys, and
+compares **owner-token record, sorted registered client
+IDs and details, hashed access and refresh token records,
+and OAuth resource alignment**. Any mismatch exits nonzero;
+no silent fallback to an empty state.
+
+The code is at `scripts/compare-oauth-state-readonly.mjs`
+(`6555a9b0`, hardened `9023c88e`).
+`scripts/verify-oauth-private-continuity-comparison.mjs`
+(`f3cb1bab`, hardened `ac23e547`)
+executes two random, fully synthetic, non-owner state
+directories, verifies all-equal PASS, refusal of same-path,
+replacement client ID, changed refresh token/owner token,
+foreign OAuth resource, empty-client state and zero
+sensitive-value stdout. CI workflow `931025df`
+runs the actual Node utility on Linux **and Windows**.
+
+**Important epistemic boundary:** A matching pair is only
+a *structural snapshot equality receipt*, not proof that
+the original live v0.2.0 writer is quiescent, that a
+pre-approved immutable backup exists, that the endpoint
+issuer matches a trusted private external pin, that
+the snapshots are the currently active installed state,
+or that ChatGPT has retained a usable connection.
+The tool outputs
+`oldWriterQuiescenceVerified=false`,
+`externallyPinnedSnapshotVerified=false`,
+`existingChatGPTAuthorizationProven=false`, and
+`productionCutoverAuthorized=false` even when its
+local snapshot records all match.
+Only after separate owner approval and PRIVATE
+capture/verification of the original owner's state
+may this comparison be considered as one input to
+a future reversible cutover. It is **not** run
+against the actual owner's OAuth records in this turn.
+
+Source CI must be independently verified at the exact
+code SHA; do not state 3/3 merely because Linux passed
+while hosted Windows still runs its full artifact
+download and hash round-trip.
+
+**Remaining path:** audit actual deployed watchdog,
+launcher, shared WScript per-argument modes, Startup entry
+and independent task triggers before any live old-7979
+quiescence; owner-approved private immutable OAuth backup;
+compare identical snapshots locally; only then
+separately approved one-writer switch and rollback.
+Native ordinary consumer ChatGPT Project CHAT turn,
+context-limit event and exact same-Project successor
+are STILL not provider-attested by this candidate.
+GOAL research execution 0; genuine CHAT rollover 0/2.
+
+---
+
+
 ## 2026-11-02 — Registered OAuth client set integrity is REQUIRED
 
 **Newly verified source gap:** a valid `oauth.json` document with
