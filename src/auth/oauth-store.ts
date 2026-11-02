@@ -162,7 +162,7 @@ export class JsonOAuthStore {
   private readonly writerLockPath: string;
 
 
-  constructor(stateDir: string) {
+  constructor(stateDir: string, private readonly requireExistingState = false) {
     this.stateDir = stateDir;
     this.filePath = join(stateDir, OAUTH_FILE);
     this.writerLockPath = join(stateDir, "oauth-write.lock");
@@ -277,7 +277,7 @@ export class JsonOAuthStore {
       entry = await lstat(this.filePath);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT" &&
-          !this.persistedOAuthPreviouslyObserved) {
+          !this.persistedOAuthPreviouslyObserved && !this.requireExistingState) {
         this.cache = emptyFile();
         return this.cache;
       }
