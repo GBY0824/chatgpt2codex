@@ -44,9 +44,9 @@ if(process.argv[3]==='--worker') {
   if(process.argv.length!==3)throw Error('SYNTHETIC_UNEXPECTED_ARGUMENTS');
   const temp=await mkdtemp(path.join(os.tmpdir(),marker));
   const dir=path.join(temp,'oauth-fake-only');
-  function run(worker){
+  function run(worker, targetDir=dir){
     return new Promise((resolve,reject)=>{
-      const child=spawn(process.execPath,[process.argv[1],builtRoot,'--worker',dir,String(worker)],{
+      const child=spawn(process.execPath,[process.argv[1],builtRoot,'--worker',targetDir,String(worker)],{
         stdio:['ignore','pipe','pipe'],encoding:'utf8',windowsHide:true
       });
       let out='',err='';
@@ -85,10 +85,26 @@ if(process.argv[3]==='--worker') {
       'WRITER_FAILED_FOR_UNEXPECTED_REASON');
     assert.equal(clientDigest(await readFile(path.join(dir,'oauth.json'))),before);
     assert.equal(await readFile(lockPath,'utf8'),stale);
+    // Re-run additional REAL independent-process contention rounds on
+    // fresh synthetic state folders, to catch intermittent Windows
+    // exclusive-open access errors without ever touching owner state.
+    for(let round=1;round<4;round++){
+      const roundDir=path.join(temp,'oauth-fake-round-'+round);
+      const completed=await Promise.all(
+        Array.from({length:workers},(_,i)=>run(i,roundDir))
+      );
+      assert(completed.every(x=>x.out.includes('SYNTHETIC_OAUTH_WRITER_FINISHED')));
+      const roundDoc=JSON.parse(await readFile(path.join(roundDir,'oauth.json'),'utf8'));
+      assert.equal(roundDoc.clients.length,workers*clientsPerWorker,'REPEAT_LOST_CROSS_PROCESS_CLIENT');
+      assert.equal(new Set(roundDoc.clients.map(x=>x.clientId)).size,workers*clientsPerWorker);
+      await assert.rejects(()=>stat(path.join(roundDir,'oauth-write.lock')),{code:'ENOENT'});
+    }
     console.log(JSON.stringify({
       code:'SYNTHETIC_OAUTH_CROSS_PROCESS_WRITER_EXCLUSION_PASS',
       clientsRetained:workers*clientsPerWorker,
       independentlySpawnedWriters:workers,
+      consecutiveSyntheticRounds:4,
+      totalCandidateProcessRuns:workers*4+1,
       staleLockRejected:true,
       staleLockAutoDeleted:false,
       actualLiveOwnerStateRead:false,
