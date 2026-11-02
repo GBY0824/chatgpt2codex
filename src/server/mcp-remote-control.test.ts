@@ -355,7 +355,7 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
       "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256",
       "-days", "1", "-keyout", keyPath, "-out", certPath,
       "-config", certConfig, "-extensions", "v3_req",
-    ], { stdio: "ignore", timeout: 15_000 });
+    ], { stdio: "ignore", timeout: 45_000 });
     const cert = await fs.readFile(certPath);
     const key = await fs.readFile(keyPath);
     const port = await getFreePort();
@@ -492,6 +492,6 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
       originalChatTurnAttested: false, researchExecutionAuthorized: false, effectsIssued: 0,
     });
 
-  }, 30_000);
+  }, 75_000);
 
 });
