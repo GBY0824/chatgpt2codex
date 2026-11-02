@@ -14,6 +14,7 @@ on:
       - "src/auth/oauth-store.ts"
       - "scripts/verify-oauth-writer-lock.mjs"
       - "scripts/verify-goal-intent-cross-process.mjs"
+      - "scripts/verify-required-existing-oauth-startup.mjs"
       - "src/auth/oauth-store-failclosed.test.ts"
       - "scripts/verify-corrupt-oauth-cli-rotation.mjs"
       - "src/state/isolated-state.ts"
@@ -57,6 +58,8 @@ jobs:
         run: npm run build
       - name: Independent GOAL app-intent writers and stale-lock refusal (synthetic only)
         run: node scripts/verify-goal-intent-cross-process.mjs .
+      - name: Existing OAuth migration startup fail-closed before any writes or socket bind
+        run: node scripts/verify-required-existing-oauth-startup.mjs .
       - name: Real CLI rotation must refuse corrupt synthetic OAuth store
         run: node scripts/verify-corrupt-oauth-cli-rotation.mjs .
       - name: Separate candidate processes serialize synthetic OAuth client writes
@@ -294,6 +297,8 @@ jobs:
         run: npm run build
       - name: Windows GOAL app-intent independent process race (synthetic only)
         run: node scripts/verify-goal-intent-cross-process.mjs .
+      - name: Windows existing OAuth startup fail-closed before writes or socket bind
+        run: node scripts/verify-required-existing-oauth-startup.mjs .
       - name: Windows CLI rotation must preserve synthetic owner hash on corrupt OAuth store
         run: node scripts/verify-corrupt-oauth-cli-rotation.mjs .
       - name: Windows separate candidate processes serialize OAuth client writes
