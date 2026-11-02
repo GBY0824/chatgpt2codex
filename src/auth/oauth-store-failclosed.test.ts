@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { JsonOAuthStore, hashToken } from "./oauth-store.js";
+import { JsonOAuthStore, hashToken, isVerifiedOAuthWriterContention } from "./oauth-store.js";
 
 const REDIRECT = "http://127.0.0.1:49173/callback";
 const basicClient = {
@@ -31,6 +31,20 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
   });
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
+  });
+
+  it("classifies Windows competing writer open errors only with a verified regular-file claim", () => {
+    expect(isVerifiedOAuthWriterContention("EEXIST", "win32", false)).toBe(true);
+    expect(isVerifiedOAuthWriterContention("EEXIST", "linux", false)).toBe(true);
+    for (const errno of ["EACCES", "EPERM"]) {
+      expect(isVerifiedOAuthWriterContention(errno, "win32", true)).toBe(true);
+      expect(isVerifiedOAuthWriterContention(errno, "win32", false)).toBe(false);
+      expect(isVerifiedOAuthWriterContention(errno, "linux", true)).toBe(false);
+      expect(isVerifiedOAuthWriterContention(errno, "darwin", true)).toBe(false);
+    }
+    for (const errno of ["ENOENT", "EIO", "ENOSPC", "EROFS", undefined]) {
+      expect(isVerifiedOAuthWriterContention(errno, "win32", true)).toBe(false);
+    }
   });
 
   it("still allows first registration when oauth.json is truly absent", async () => {
