@@ -1,5 +1,102 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — PRIVATE OAUTH COMPARATOR HIDDEN-FIELD FALSE PASS FIXED
+
+**Current user request:** continue the single original MCP integration,
+protect native owner OAuth identity and do NOT fabricate normal
+consumer ChatGPT Project CHAT rollover. PR #1 branch
+`goal-app-auth-review-20261101` remains DRAFT UNMERGED.
+No original 7979, separate 7987, task, installed script,
+actual OAuth file, browser or connected ChatGPT identity
+was modified.
+
+**Prior last document HEAD fully independently verified:**
+`ed8333aa3651f4a5fcb49fe6f61493ff0c63df07`,
+[Actions 41387106104](https://github.com/GBY0824/chatgpt2codex/actions/runs/41387106104)
+**COMPLETED SUCCESS Linux/native Windows/macOS 3/3**,
+including Windows offline bundled private comparator.
+
+**New issue found in real source review:** the newly added
+`scripts/compare-oauth-state-readonly.mjs` originally
+compared owner/client/token records and resource pin,
+but could PASS with **different `oauth.json.updatedAt`**
+and did not reject **unknown additional persisted fields**
+in owner token JSON, OAuth root, client record or
+token record. Such a result overstated equivalence of
+two separately captured private snapshots.
+
+**Code patch `ff628b24515ccc2607b735b5fee8e3e8b2d161ff`:**
+- Only the exact expected top-level
+  `owner-token.json` and `oauth.json` fields and
+  persisted client/access/refresh token record keys
+  are accepted. Unexpected extra keys -> fail closed
+  `OAUTH_PRIVATE_CONTINUITY_RECORDS_INVALID`.
+  The opaque registered `clientJson` remains compared
+  in full rather than redacted/ignored.
+- The OAuth `version` and `updatedAt` now
+  participate in equality. New Boolean output
+  `oauthDocumentMetadataMatches`; mismatched
+  metadata -> `OAUTH_PRIVATE_CONTINUITY_MISMATCH_DENIED`.
+- Fixture `140df7fd99e94a551b362e29c56734c450ac4736`
+  runs the real comparator with randomized disposable
+  fake baseline/candidate folders and tests normal
+  identical PASS vs extra owner/document/client/token
+  data, different updatedAt and all prior mismatch cases.
+- Migration runbook updated at
+  `c241eb9e92a13b5ee9ec6090221148065c2483b9`.
+
+**Source+test CI** exact
+[Actions 41387603370](https://github.com/GBY0824/chatgpt2codex/actions/runs/41387603370),
+SHA `140df7fd99e94a551b362e29c56734c450ac4736`,
+had Linux build+actual comparison SUCCESS, macOS
+SUCCESS and Windows compiled comparison step SUCCESS;
+the last native Windows isolated bundle download
+SHA256 roundtrip was still IN PROGRESS at first
+checkpoint. Independently CHECK final 3/3 before
+claiming. Docs run 41387710649 similarly Linux/macOS
+success, Windows pending at initial check.
+
+**Owner Windows permission boundary maintained:** direct
+connected Codex `project_select(read-only)` succeeded,
+but the subsequently attempted metadata-only
+installed watchdog/launcher SHA256 file-size query
+was refused `PERMISSION_DENIED: Lease preset read-only
+does not allow verify`. NO hashes, contents, script
+arguments, credentials or role identities were returned.
+It was NOT retried under stronger lease/alternate route
+or circumvented. Earlier independently permitted owner
+metadata remains the last actual source: original
+7979 and isolated 7987 one listener each; main task
+Running; independent watchdogs Ready; OAuthGuard Disabled.
+Installed watchdog differs from saved GitHub research
+source; per-mode relaunch control unproven.
+
+**Actual cutover still blocked:** original installed
+v0.2.0 ignores upgraded OAuth writer lock and can
+relaunch through unverified supervisors; no privately
+verified immutable owner backup/issuer/client-set
+snapshot or owner-approved reversible one-writer
+handover exists. Successful synthetic comparison
+DOES NOT attest original/current private OAuth state,
+live ChatGPT authorization or quiescence. Original
+native ChatGPT consumer Project CHAT turn/context-limit
+and exact unattended successor event still not
+available/verified through this MCP; APP GOAL intent
+not P3 research authority.
+Actual research GOAL effects **0**; true unattended
+ordinary same-Project CHAT rollover **0/2**.
+
+**Next allowed step:** verify exact SHA CI outcome,
+then continue source-only reproducible inspection
+where permitted; do not bypass denied connected
+Windows read-only lease; identify a legitimate
+owner-consented route for provenance / private
+snapshot before production authorization.
+No release, merge, task mutation or OAuth rotation.
+
+---
+
+
 ## 2026-11-02 KST — OFFLINE WINDOWS STAGE NOW INCLUDES READ-ONLY PRIVATE COMPARATOR
 
 After the new private baseline/candidate OAuth comparison
