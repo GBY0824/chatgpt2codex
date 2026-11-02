@@ -33,7 +33,14 @@ export interface PersistedGoalAppNotice {
   originalChatTurnAttested: false;
   researchExecutionAuthorized: false;
 }
-export type GoalAppNoticeHost = (notice: Readonly<PersistedGoalAppNotice>) => Promise<void>;
+export type GoalAppReadinessCode =
+  | "GOAL_APP_OFF_OBSERVED_NO_EXECUTION"
+  | "GOAL_STAGE_P4R_ACTIVE_P4_PENDING"
+  | "GOAL_STAGE_P4_OBSERVED_P3_PERMISSION_MISSING"
+  | "GOAL_STAGE_ROUTING_UNVERIFIED";
+export type GoalAppNoticeHost = (
+  notice: Readonly<PersistedGoalAppNotice>,
+) => Promise<void | GoalAppReadinessCode>;
 interface IntentState {
   schema: 1;
   requestedMode: "ON" | "OFF";
@@ -232,7 +239,7 @@ export async function goalAppCommand(
       return { ...result, eventNotice: "SUPERSEDED_BEFORE_NOTIFY",
         researchExecutionAuthorized: false, effectsIssued: 0 };
     }
-    await onPersistedNotice(Object.freeze({
+    const readiness = await onPersistedNotice(Object.freeze({
       source: "OAUTH_SCOPED_APP_INTENT" as const,
       action: emitted.action, revision: emitted.revision,
       commandId: emitted.commandId,
@@ -242,6 +249,7 @@ export async function goalAppCommand(
       researchExecutionAuthorized: false as const,
     }));
     return { ...result, eventNotice: "APP_HOST_NOTIFIED_NO_EXECUTION",
+      ...(typeof readiness === "string" ? { stageReadiness: readiness } : {}),
       researchExecutionAuthorized: false, effectsIssued: 0 };
   } catch {
     // Never rollback a persisted OFF or pretend a failed callback succeeded.
