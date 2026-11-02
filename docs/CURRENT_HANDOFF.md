@@ -1,5 +1,83 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — FINAL SOURCE CI VERIFIED 3/3: CLIENT CONTINUITY FENCE
+
+**EXACT latest source/policy SHA**:
+`7f16c85c040f870b88a4be2cfc6429743412ddc5`,
+[GitHub Actions 41385129390](https://github.com/GBY0824/chatgpt2codex/actions/runs/41385129390)
+**COMPLETED SUCCESS Linux + native Windows + macOS
+3/3**. Read native Windows and Linux actual logs:
+
+- Linux AND Windows
+  `SYNTHETIC_REQUIRED_EXISTING_OAUTH_STARTUP_GATE_PASS`
+  with `emptyClientRegistrationsRejected:true` and
+  `portOpened:false`; no owner data accessed.
+- Linux AND Windows
+  `SYNTHETIC_OAUTH_READONLY_MIGRATION_CLIENTS_PASS`
+  with empty clients blocked; valid nonempty client
+  accepted structurally only; foreign OAuth resource
+  and mismatched client ID refused. The inspector
+  never claims existing ChatGPT client connection
+  or owner approval from these tests.
+- Windows `SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS
+  cases=56 negativeCases=54 positiveFixtures=2`,
+  including new zero/missing client count and
+  unpinned old/new registration set refusals.
+- Windows `DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=3480`
+  for entirely noninstalled hosted CI stage.
+
+Previous exact source SHA `f4eb909f295d0d5f963a611dd7da16067be35c39`
+[Actions 41385052529](https://github.com/GBY0824/chatgpt2codex/actions/runs/41385052529)
+also independently **COMPLETED SUCCESS 3/3**.
+Earlier intermediate `e3be6650` source/test CI
+failures were a stale compiled CLI fixture expecting
+the missing-owner-token error for a **now-invalid
+empty OAuth client registration**. The real error
+`OAUTH_REQUIRED_CLIENT_REGISTRATIONS_MISSING`
+is correct; the fixture was repaired in `65ce55c3`.
+
+**Live Windows metadata stayed read-only:** original
+7979 one listener, isolated 7987 one; original Tailscale
+scheduled task Running with one enabled trigger
+and 5x1min restart policy; emergent watchdog
+and MCP self-healing tasks Ready with 2 enabled
+triggers each; OAuth guard task Disabled despite
+2 configured enabled triggers. These facts
+do NOT prove the task action arguments or script
+control-flow actually relaunch 7979. Do not
+disrupt unrelated shared WScript OSINT modes.
+
+**None of this is live owner OAuth migration:**
+old v0.2.0 cannot share writer state, actual
+installed watchdog != archived research source,
+real issuer and prior/current OAuth client-ID
+sets must still be privately pinned and backed
+up, explicit owner quiescence/cutover approval
+required, rollback rehearsed. Native ordinary
+consumer ChatGPT Project CHAT context-limit
+and successor attestation missing. Actual GOAL
+research effects 0, genuine unattended
+normal consumer Project CHAT rollover 0/2.
+PR #1 remains DRAFT/UNMERGED; no production
+task, binary, OAuth credential/client, browser
+or connector state was changed.
+
+**New-chat instruction:** read this receipt,
+the remaining history below and
+`docs/MCP_SINGLE_RUNTIME_MIGRATION.md`, then
+query PR #1 current HEAD and exact CI.
+The latest handoff DOC commit may generate a
+newer independent Actions run; latest fully
+verified CODE SHA is `7f16c85c...`.
+Only resume owner-approved read-only provenance
+where permitted. Never bypass the prior denied
+detailed Windows AST access, and never promote
+synthetic GOAL/turn evidence to the real 2/2
+acceptance criterion.
+
+---
+
+
 ## 2026-11-02 KST — NEXT REAL MIGRATION BLOCKER: NONEMPTY IS NECESSARY BUT NOT SUFFICIENT
 
 **Owner-requested manual continuation**, not unattended ChatGPT
