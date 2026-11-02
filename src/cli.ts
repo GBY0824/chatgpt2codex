@@ -229,6 +229,7 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
   // pre-existing OAuth state; isolated disposable review remains separate.
   const processHostKeys = [
     "goal-process-executable", "goal-process-script", "goal-process-script-sha256",
+    "goal-process-key-file",
   ] as const;
   const processHostRequested = processHostKeys.some((key) => flags[key] !== undefined);
   if (processHostRequested) {
@@ -249,19 +250,22 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
     process.exitCode = 1;
     return;
   }
-  const ctx = await buildToolContext(workspace, stateDir);
-  // Owner-opt-in, read-only Stage diagnostic only; no P3/Stage authority.
-  if (flags["goal-readonly-stage-check"] === true) {
-    ctx.goalAppNoticeHost = createGoalStageReadOnlyHost(workspace);
-  }
-  if (processHostRequested) {
-    ctx.goalAppNoticeHost = await createGoalProcessNoticeHost({
+  // Check the complete owner-selected process host/key pin BEFORE any
+  // session registry or audit writes; never activate a partial host.
+  const processHost = processHostRequested
+    ? await createGoalProcessNoticeHost({
       projectRoot: workspace, stateDir,
       executable: flags["goal-process-executable"] as string,
       script: flags["goal-process-script"] as string,
       scriptSha256: flags["goal-process-script-sha256"] as string,
-    });
+      bridgeKeyFile: flags["goal-process-key-file"] as string,
+    }) : undefined;
+  const ctx = await buildToolContext(workspace, stateDir);
+  // Read-only Stage and process host are mutually exclusive.
+  if (flags["goal-readonly-stage-check"] === true) {
+    ctx.goalAppNoticeHost = createGoalStageReadOnlyHost(workspace);
   }
+  if (processHost) ctx.goalAppNoticeHost = processHost;
 
   const port = typeof flags.port === "string" ? Number.parseInt(flags.port, 10) : 7979;
   const host = typeof flags.host === "string" ? flags.host : "127.0.0.1";
