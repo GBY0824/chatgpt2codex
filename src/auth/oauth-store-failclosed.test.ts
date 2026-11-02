@@ -114,13 +114,16 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
     });
   }
 
-  it("preserves previously persisted registered clients if oauth.json disappears in the same store instance", async () => {
+  it("preserves prior client and refresh-token records when an observed OAuth file vanishes", async () => {
     const registered = await store.registerClient(basicClient, []);
+    expect(await store.saveTokenPair(pair)).toBe(true);
     const before = await readFile(oauthFile());
     expect(before.length).toBeGreaterThan(0);
     await rm(oauthFile());
     // The failure must not be misclassified as an uninitialized store.
     await expect(store.getClient(registered.client_id))
+      .rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(store.getRefreshToken(pair.refreshTokenHash))
       .rejects.toThrow("OAUTH_STORE_READ_FAILED");
     await expect(store.registerClient(basicClient, []))
       .rejects.toThrow("OAUTH_STORE_READ_FAILED");
@@ -133,6 +136,8 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
     await writeFile(oauthFile(), before);
     expect((await store.getClient(registered.client_id))?.client_id)
       .toBe(registered.client_id);
+    expect((await store.getRefreshToken(pair.refreshTokenHash))?.clientId)
+      .toBe(pair.refreshToken.clientId);
   });
 
   it("still allows first initialization ONLY when no OAuth file has ever been seen by this instance", async () => {
