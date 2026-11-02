@@ -82,7 +82,7 @@ async function deliver(
         "PATH", "Path", "SystemRoot", "WINDIR", "TEMP", "TMP",
         "HOME", "USERPROFILE", "LANG", "LC_ALL",
       ].filter((key) => process.env[key] !== undefined)
-        .map((key) => [key, process.env[key]!]).concat([
+         .map((key): [string, string] => [key, process.env[key]!]).concat([
           ["PYTHONDONTWRITEBYTECODE", "1"],
         ])),
     });
@@ -100,15 +100,15 @@ async function deliver(
       child.kill();
       finish(new Error("GOAL_PROCESS_HOST_TIMEOUT_RECONCILE"));
     }, 8000);
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (v: string) => {
+    child.stdout!.setEncoding("utf8");
+    child.stdout!.on("data", (v: string) => {
       stdout += v;
       if (Buffer.byteLength(stdout) > 2048) {
         child.kill();
         finish(new Error("GOAL_PROCESS_HOST_RESPONSE_OVERSIZED"));
       }
     });
-    child.stderr.on("data", (v: Buffer) => {
+    child.stderr!.on("data", (v: Buffer) => {
       stderrBytes += v.length;
       // Never return stderr; it could contain sensitive local paths.
       if (stderrBytes > 8192) {
@@ -136,10 +136,10 @@ async function deliver(
         finish(new Error("GOAL_PROCESS_HOST_INVALID_JSON"));
       }
     });
-    child.stdin.on("error", () => {
+    child.stdin!.on("error", () => {
       // A closed pipe is covered by nonzero exit / missing authenticated ACK.
     });
-    child.stdin.end(envelope);
+    child.stdin!.end(envelope);
   });
 }
 
