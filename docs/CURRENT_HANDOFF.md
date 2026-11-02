@@ -1,5 +1,102 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — OWNER REQUEST: CLOSE OLD PROBLEMS, THEN ADVANCE; OAUTH PERSISTENCE RECOVERY
+
+**Manual user turn**, no unattended rollover. Draft PR #1
+`goal-app-auth-review-20261101`; original 7979, isolated stage
+7987, Windows original installed binaries, scheduled tasks,
+Chrome and all actual user OAuth state untouched. Live Codex
+read-only check in this turn independently found exactly
+one listener on original 7979 and one on stage 7987, and
+`ChatGPT To Codex MCP - Tailscale` task **Running**.
+No OAuth or command-line raw text read from owner PC.
+
+**Baseline independently verified:** previous HEAD
+`2486842d1ec664e471c68865a1835f74bd259d91`,
+[Actions 41367236267](https://github.com/GBY0824/chatgpt2codex/actions/runs/41367236267)
+**COMPLETED SUCCESS Linux/Windows/macOS 3/3**.
+
+**Windows OAuth open EPERM reproducibility/test quality improved:**
+- New source-only `decideOAuthExclusiveOpenFailure`
+  in `src/auth/oauth-store.ts` at commit
+  `ea0db7c8f5b4c7a9d2089be65a0aa4baa6740c1b`
+  factors current actual exclusive `wx` open decision into
+  `retry | busy | io-failed`. User data writes remain impossible
+  until OS exclusive open genuinely succeeds. Verified existing
+  lock can return BUSY after <=5s; unverified Windows EPERM/
+  EACCES becomes I/O FAILED after <=5s (not false ownership);
+  other platform/errno errors fail immediately. This preserves
+  the earlier bounded behavior; no unapproved live changes.
+- Unit tests commit
+  `0b2558a2003a9023629f532eb0502a628d74497d`
+  runs **16 deterministic input combinations** including
+  expired timeout and *unverified* EPERM, not just helper
+  boolean. This is deterministic policy coverage rather than
+  a fake claim to inject real Windows OS errors.
+- Exact
+  [Actions 41367547751](https://github.com/GBY0824/chatgpt2codex/actions/runs/41367547751)
+  source/test SHA `0b2558a...`
+  **COMPLETED SUCCESS Linux/Windows/macOS 3/3**.
+  Existing historical intermittent EPERM runs remain documented.
+  A set of passing tests does NOT prove no future EPERM;
+  errno-category diagnostics and cross-process four-round test
+  stay active.
+
+**Second, separately important OAuth existing-state protection:**
+Previous `JsonOAuthStore.load()` considered `ENOENT`
+from a single `readFile` equivalent to a new, empty OAuth
+store. If an already-registered `oauth.json` vanished
+between existing-file check and read, or after it had been
+loaded earlier by the same process, a later write might
+silently start a new empty store and discard registered
+client and refresh-token continuity. Candidate source
+`ea57917479c7685275e7f27a62d682d35f2f2baf`
+now separates initial missing `lstat` from later
+`readFile` errors, refuses symlink/non-file state, and
+remembers when the same store instance has already
+observed or persisted an OAuth state file. Any later
+disappearance triggers `OAUTH_STORE_READ_FAILED`,
+not silently replacing an established store with an
+empty document. Initial truly absent file still
+allows fresh first-time initialization. This is
+**same-instance safety only**, not a cryptographic
+proof of past state after a whole-process restart
+without an owner backup/anchor.
+
+New tests
+`624aa38e5339706d09912bd6e125b569d8f2b9b3`,
+expanded at
+`dfed328cc3e7da50732d53f11f4553b9083671ac`,
+register a synthetic client, save a synthetic refresh
+token, remove the existing store, assert both reads
+and every candidate write REFUSE, restore original
+bytes, and verify both client and refresh-token
+records retained. These are disposable test files,
+**not owner state**. Latest
+[Actions 41367840079](https://github.com/GBY0824/chatgpt2codex/actions/runs/41367840079)
+for exact expanded tests was queued on initial receipt;
+check Linux+Windows+macOS completion before claiming
+3/3. Earlier `624aa38e...` native Windows still
+in progress at prior check.
+
+**Unresolved production gates still separate:**
+(1) real installed Windows watchdog differs from GitHub
+archived watcher; shared WScript/Startup/scheduler paths
+need owner-authorized source/behavior attestation;
+(2) existing old v0.2.0 ignores candidate OAuth writer lock,
+so no shared state or live cutover without explicit
+owner-approved reversible quiescence/backup;
+(3) OpenAI's documented MCP Events apply to Work/dots,
+not provider-attested ordinary consumer native Project
+CHAT context-limit and same-Project successor;
+(4) GOAL ON/OFF app intent is not a P3 research executor
+permit. Real GOAL effects **0**, real ordinary CHAT
+unattended rollovers **0/2**. PR #1 remains DRAFT
+UNMERGED. Never label synthetic testing as actual rollout.
+
+---
+
+
 ## 2026-11-02 KST — VERIFIED LATEST OAUTH WINDOWS EPERM RETRY SOURCE CI 3/3
 
 **Exact independently verified latest source + unit tests SHA:**
