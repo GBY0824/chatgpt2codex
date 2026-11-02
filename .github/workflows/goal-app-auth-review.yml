@@ -17,6 +17,8 @@ on:
       - "scripts/verify-required-existing-oauth-startup.mjs"
       - "scripts/inspect-oauth-state-readonly.mjs"
       - "scripts/verify-oauth-readonly-migration-clients.mjs"
+      - "scripts/compare-oauth-state-readonly.mjs"
+      - "scripts/verify-oauth-private-continuity-comparison.mjs"
       - "src/auth/oauth-store-failclosed.test.ts"
       - "scripts/verify-corrupt-oauth-cli-rotation.mjs"
       - "src/state/isolated-state.ts"
@@ -64,6 +66,8 @@ jobs:
         run: node scripts/verify-required-existing-oauth-startup.mjs .
       - name: Read-only OAuth migration client and issuer continuity (synthetic only)
         run: node scripts/verify-oauth-readonly-migration-clients.mjs .
+      - name: Private baseline-and-candidate OAuth state continuity comparison (synthetic only)
+        run: node scripts/verify-oauth-private-continuity-comparison.mjs .
       - name: Real CLI rotation must refuse corrupt synthetic OAuth store
         run: node scripts/verify-corrupt-oauth-cli-rotation.mjs .
       - name: Separate candidate processes serialize synthetic OAuth client writes
@@ -305,6 +309,8 @@ jobs:
         run: node scripts/verify-required-existing-oauth-startup.mjs .
       - name: Windows read-only OAuth migration client and issuer continuity (synthetic only)
         run: node scripts/verify-oauth-readonly-migration-clients.mjs .
+      - name: Windows private baseline-and-candidate OAuth continuity comparison (synthetic only)
+        run: node scripts/verify-oauth-private-continuity-comparison.mjs .
       - name: Windows CLI rotation must preserve synthetic owner hash on corrupt OAuth store
         run: node scripts/verify-corrupt-oauth-cli-rotation.mjs .
       - name: Windows separate candidate processes serialize OAuth client writes
