@@ -158,6 +158,7 @@ export class JsonOAuthStore {
   private readonly filePath: string;
   private queue: Promise<unknown> = Promise.resolve();
   private cache: OAuthFile | undefined;
+  private persistedOAuthPreviouslyObserved = false;
   private readonly writerLockPath: string;
 
 
@@ -267,14 +268,30 @@ export class JsonOAuthStore {
     // unsupported or unreadable existing file must never become an empty
     // document: the next OAuth write would otherwise erase registered clients
     // and token records silently.
+    // Split absence at FIRST lstat from subsequent read failures. A path
+    // removed after stat must not be treated as a new empty store. Once this
+    // instance has observed a valid persistent document, losing it must
+    // never silently erase previously registered clients on the next write.
+    let entry: Awaited<ReturnType<typeof lstat>>;
+    try {
+      entry = await lstat(this.filePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT" &&
+          !this.persistedOAuthPreviouslyObserved) {
+        this.cache = emptyFile();
+        return this.cache;
+      }
+      this.cache = undefined;
+      throw new Error("OAUTH_STORE_READ_FAILED", { cause: error });
+    }
+    if (!entry.isFile()) {
+      this.cache = undefined;
+      throw new Error("OAUTH_STORE_READ_FAILED");
+    }
     let raw: string;
     try {
       raw = await readFile(this.filePath, "utf8");
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        this.cache = emptyFile();
-        return this.cache;
-      }
       this.cache = undefined;
       throw new Error("OAUTH_STORE_READ_FAILED", { cause: error });
     }
@@ -291,6 +308,7 @@ export class JsonOAuthStore {
       this.cache = undefined;
       throw new Error("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
     }
+    this.persistedOAuthPreviouslyObserved = true;
     this.cache = parsed.data;
     return this.cache;
   }
@@ -306,6 +324,7 @@ export class JsonOAuthStore {
     } catch {
       // Non-fatal.
     }
+    this.persistedOAuthPreviouslyObserved = true;
     this.cache = doc;
   }
 
