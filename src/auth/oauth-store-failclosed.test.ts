@@ -114,6 +114,34 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
     });
   }
 
+  it("preserves previously persisted registered clients if oauth.json disappears in the same store instance", async () => {
+    const registered = await store.registerClient(basicClient, []);
+    const before = await readFile(oauthFile());
+    expect(before.length).toBeGreaterThan(0);
+    await rm(oauthFile());
+    // The failure must not be misclassified as an uninitialized store.
+    await expect(store.getClient(registered.client_id))
+      .rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(store.registerClient(basicClient, []))
+      .rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(store.saveTokenPair(pair))
+      .rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(store.clearAll())
+      .rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(readFile(oauthFile())).rejects.toMatchObject({ code: "ENOENT" });
+    // The controlled fixture can be restored, and its identity retained.
+    await writeFile(oauthFile(), before);
+    expect((await store.getClient(registered.client_id))?.client_id)
+      .toBe(registered.client_id);
+  });
+
+  it("still allows first initialization ONLY when no OAuth file has ever been seen by this instance", async () => {
+    const registered = await store.registerClient(basicClient, []);
+    expect(registered.client_id).toMatch(/^chatgpt2codex-/);
+    await rm(oauthFile());
+    await expect(store.assertWritable()).rejects.toThrow("OAUTH_STORE_READ_FAILED");
+  });
+
   it("refuses an existing unreadable non-file rather than emptying it", async () => {
     await mkdir(oauthFile());
     await expect(store.registerClient(basicClient, [])).rejects.toThrow("OAUTH_STORE_READ_FAILED");
