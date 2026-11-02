@@ -5,13 +5,9 @@
  */
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { GoalAppNoticeHost, PersistedGoalAppNotice } from "./goal-app-intent.js";
-
-export type GoalStageObservationCode =
-  | "GOAL_APP_OFF_OBSERVED_NO_EXECUTION"
-  | "GOAL_STAGE_P4R_ACTIVE_P4_PENDING"
-  | "GOAL_STAGE_P4_OBSERVED_P3_PERMISSION_MISSING"
-  | "GOAL_STAGE_ROUTING_UNVERIFIED";
+import type {
+  GoalAppNoticeHost, PersistedGoalAppNotice, GoalAppReadinessCode,
+} from "./goal-app-intent.js";
 
 export function createGoalStageReadOnlyHost(projectRoot: string): GoalAppNoticeHost {
   const absoluteRoot = path.resolve(projectRoot);
@@ -20,7 +16,7 @@ export function createGoalStageReadOnlyHost(projectRoot: string): GoalAppNoticeH
     if (notice.action === "OFF") return "GOAL_APP_OFF_OBSERVED_NO_EXECUTION";
     // The exact CLI root must come from an explicit owner-selected workspace.
     // A missing, linked, malformed or oversized Stage is never a P4 grant.
-    let code: GoalStageObservationCode = "GOAL_STAGE_ROUTING_UNVERIFIED";
+    let code: GoalAppReadinessCode = "GOAL_STAGE_ROUTING_UNVERIFIED";
     try {
       const [root, docs, file] = await Promise.all([
         fs.lstat(absoluteRoot), fs.lstat(path.dirname(stageFile)),
