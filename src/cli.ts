@@ -24,6 +24,7 @@ import { Ledger } from "./state/ledger.js";
 import { createServer } from "./server/mcp-server.js";
 import { createHttpServer, defaultHttpServerConfig } from "./server/http.js";
 import { createGoalStageReadOnlyHost } from "./server/goal-stage-readonly.js";
+import { createGoalProcessNoticeHost } from "./server/goal-process-notice-host.js";
 import { resolveIsolatedStateDir } from "./state/isolated-state.js";
 import { generateOwnerToken, hasOwnerToken, storeOwnerToken } from "./auth/owner-token.js";
 import { JsonOAuthStore } from "./auth/oauth-store.js";
@@ -222,6 +223,22 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
       (typeof flags.workspace !== "string" || !path.isAbsolute(flags.workspace))) {
     throw new Error("GOAL_READONLY_STAGE_ABSOLUTE_WORKSPACE_REQUIRED");
   }
+  // An owner-pinned process bridge is the ONLY optional route from the
+  // original MCP to an external GoalEventEngine host. It is never enabled
+  // by OAuth or a model-supplied tool parameter alone. Production requires
+  // pre-existing OAuth state; isolated disposable review remains separate.
+  const processHostKeys = [
+    "goal-process-executable", "goal-process-script", "goal-process-script-sha256",
+  ] as const;
+  const processHostRequested = processHostKeys.some((key) => flags[key] !== undefined);
+  if (processHostRequested) {
+    if (flags["goal-readonly-stage-check"] !== undefined
+        || (flags["isolated-state-dir"] === undefined && !requireExistingOAuthState)
+        || typeof flags.workspace !== "string" || !path.isAbsolute(flags.workspace)
+        || processHostKeys.some((key) => typeof flags[key] !== "string")) {
+      throw new Error("GOAL_PROCESS_HOST_EXPLICIT_OWNER_PRECONDITIONS_REQUIRED");
+    }
+  }
   // Do not mutate the registry/ledger merely because a server without its
   // owner token was started. A required pre-existing OAuth document is checked
   // FIRST, then the existing owner token, only then the project state.
@@ -236,6 +253,14 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
   // Owner-opt-in, read-only Stage diagnostic only; no P3/Stage authority.
   if (flags["goal-readonly-stage-check"] === true) {
     ctx.goalAppNoticeHost = createGoalStageReadOnlyHost(workspace);
+  }
+  if (processHostRequested) {
+    ctx.goalAppNoticeHost = await createGoalProcessNoticeHost({
+      projectRoot: workspace, stateDir,
+      executable: flags["goal-process-executable"] as string,
+      script: flags["goal-process-script"] as string,
+      scriptSha256: flags["goal-process-script-sha256"] as string,
+    });
   }
 
   const port = typeof flags.port === "string" ? Number.parseInt(flags.port, 10) : 7979;
@@ -305,6 +330,11 @@ async function cmdServe(flags: Record<string, string | boolean>): Promise<void> 
   }
   if (!flags.http && flags["goal-readonly-stage-check"] !== undefined) {
     throw new Error("GOAL_READONLY_STAGE_REQUIRES_HTTP");
+  }
+  if (!flags.http && [
+    "goal-process-executable", "goal-process-script", "goal-process-script-sha256",
+  ].some((key) => flags[key] !== undefined)) {
+    throw new Error("GOAL_PROCESS_HOST_REQUIRES_HTTP");
   }
   if (flags.http) {
     await cmdServeHttp(flags);
