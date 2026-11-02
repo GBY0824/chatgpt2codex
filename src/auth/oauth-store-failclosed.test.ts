@@ -86,6 +86,38 @@ describe("OAuth store existing-state fail-closed recovery boundary", () => {
     }
   });
 
+  it("requiring pre-existing OAuth state refuses an uninitialized new process", async () => {
+    const upgraded = new JsonOAuthStore(dir, true);
+    await expect(upgraded.assertReadable()).rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(upgraded.assertWritable()).rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(upgraded.registerClient(basicClient, []))
+      .rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(readFile(oauthFile())).rejects.toMatchObject({ code: "ENOENT" });
+    // Ordinary first-time setup remains supported for freshly initialized states.
+    const initialClient = await store.registerClient(basicClient, []);
+    expect((await new JsonOAuthStore(dir, true).getClient(initialClient.client_id))?.client_id)
+      .toBe(initialClient.client_id);
+  });
+
+  it("does not forget required existing OAuth state even after server restart", async () => {
+    const owner = await store.registerClient(basicClient, []);
+    await store.saveTokenPair(pair);
+    const saved = await readFile(oauthFile());
+    await rm(oauthFile());
+    const restarted = new JsonOAuthStore(dir, true);
+    await expect(restarted.getClient(owner.client_id))
+      .rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(restarted.getRefreshToken(pair.refreshTokenHash))
+      .rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(restarted.saveTokenPair(pair))
+      .rejects.toThrow("OAUTH_STORE_READ_FAILED");
+    await expect(readFile(oauthFile())).rejects.toMatchObject({ code: "ENOENT" });
+    await writeFile(oauthFile(), saved);
+    expect((await restarted.getClient(owner.client_id))?.client_id).toBe(owner.client_id);
+    expect((await restarted.getRefreshToken(pair.refreshTokenHash))?.clientId)
+      .toBe(pair.refreshToken.clientId);
+  });
+
   it("still allows first registration when oauth.json is truly absent", async () => {
     const client = await store.registerClient(basicClient, []);
     expect(client.client_id).toMatch(/^chatgpt2codex-/);
