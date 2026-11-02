@@ -1,5 +1,80 @@
 # One-MCP integration gates — production 7979, review 7987
 
+## 2026-11-02 — COLD-START OAuth continuity gate (source-only, not deployed)
+
+The original v0.2.0 and the upgraded candidate **MUST NEVER write
+the same live OAuth state concurrently**. Once a separately authorized
+single-writer migration is eventually executed, a new hazard remains:
+a full candidate process restart loses the in-memory fact that the
+old `oauth.json` had previously existed. If that file is deleted,
+misconfigured, missing from a backup, or pointed at the wrong empty
+state directory, the earlier default JSON store could initialize
+a brand-new empty OAuth document and lose registered ChatGPT OAuth
+client and refresh-token continuity.
+
+**Candidate-only mitigation** in review PR #1:
+- `JsonOAuthStore(stateDir, requireExistingState=true)` refuses
+  the ABSENCE of `oauth.json` with `OAUTH_STORE_READ_FAILED`
+  even on a fresh process after restart. Existing malformed,
+  inaccessible, symlinked and non-file states also remain denied.
+  Fresh first-time installations continue using default `false`.
+- `SingleUserOAuthProvider` and `HttpServerConfig` propagate
+  the opted-in requirement for **every** later OAuth operation,
+  not merely the CLI's one startup probe.
+- The future owner-approved HTTP launch would explicitly use
+  `--require-existing-oauth-state`, which preflights the
+  existing persisted OAuth document **BEFORE** project/ledger
+  writes, owner-token-dependent server setup or any socket bind.
+  Missing owner token is checked before any project/ledger writes
+  as well. The option is refused for stdio (not an OAuth HTTP
+  transport), and `--require-existing-oauth-state false`
+  is rejected as a malformed attempt to silently disable it.
+- The synthetic multi-supervisor cutover gate now REQUIRES
+  `candidateRequiresExistingOAuthState === true` (a literal
+  boolean) and rejects omitted/false/string claims. This policy
+  alone is NOT proof the actual Windows Task Scheduler or Startup
+  launch command has the option: verify the real launch args
+  with separately authorized private owner inspection before
+  any cutover.
+
+**Evidence:** source+unit tests and actual compiled CLI
+(`scripts/verify-required-existing-oauth-startup.mjs`) use
+random disposable CI state directories only and check missing
+OAuth/owner-token refusal before writing a directory or binding
+a port, mandatory-state refusal after a fresh restart, preserved
+registered-client and refresh-token identity after synthetic
+snapshot restoration, opt-in flag syntax and stdio misuse.
+Linux+hosted Windows CI steps run the executable and never
+contact owner :7979 or isolated :7987.
+
+Development commits:
+`e2fda7d1` store; `c78ee227` provider;
+`b2672a2b` HTTP; `22d5b62d` CLI;
+`cf3d5f16` tests; `bac85c98` stricter
+flag+no-unauthorized-writes; `916fa10c`
+compiled CLI test; `e0175195` CI;
+`135903a0` migration refusal;
+`40a1090e` updates previous Windows staging
+smoke to the **stronger** no-state-writes-without-owner-token
+behavior. Earlier intermediate Windows CI runs FAILED
+because the old test expected an empty staging directory to
+be created before denying the missing token; this obsolete
+expectation was updated, without weakening the new
+no-writes protection.
+
+**Cutover remains blocked:** no live Windows service or OAuth file
+was read/written, no program/task/Startup was changed, no credentials
+were shared, and the actual old-relauncher command/script modes still
+need approval-compatible provenance. The permanent startup command's
+opt-in mode, pinned private state backup, owner re-consent and
+rollback must be explicitly verified before any production work.
+Even perfect OAuth continuity does NOT solve official ordinary
+ChatGPT Project CHAT limit/turn attestation or native unattended
+successor creation: actual GOAL cycles 0, rollovers 0/2.
+
+---
+
+
 ## 2026-11-02 — STOP treating saved research watchdog source as installed runtime
 
 **Direct Windows read-only provenance shows a real mismatch.**
