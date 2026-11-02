@@ -60,12 +60,12 @@ function validateCaller(caller: VerifiedAppCaller | undefined, remote: boolean):
 }
 
 async function loadState(filename: string): Promise<IntentState> {
-  // Only a missing file at the INITIAL stat is a fresh ledger. If it
+  // Only a genuinely missing file at the INITIAL lstat is a fresh ledger. If it
   // disappears between stat and read, fail closed: never silently reset
   // an existing OFF revocation fence to revision zero.
   let entry: import("node:fs").Stats;
   try {
-    entry = await fs.stat(filename);
+    entry = await fs.lstat(filename);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { ...INITIAL };
     throw new GoalAppCommandError("APP_GOAL_LEDGER_READ_FAILED");
