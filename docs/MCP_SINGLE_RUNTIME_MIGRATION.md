@@ -1,5 +1,59 @@
 # One-MCP integration gates — production 7979, review 7987
 
+## 2026-11-02 — Snapshot comparator no longer silently ignores unknown fields or update metadata
+
+A further code-level audit found that the first read-only
+old/new OAuth snapshot comparison validated the known
+clients/tokens/owner fields but did not require either
+snapshot's `oauth.json.updatedAt` to match and did not
+reject **additional, unrecognized persisted fields**.
+Consequently a baseline with extra unexamined persisted
+data or a different document update marker could
+receive a structural-match receipt even though the
+two file contents were not equivalent.
+
+Source patch `ff628b24515ccc2607b735b5fee8e3e8b2d161ff`
+now requires the exact documented top-level
+`owner-token.json` and `oauth.json` field sets
+and exact persisted client/token record field sets.
+The `clientJson` itself is compared in full as
+opaque registration data (not stripped or logged).
+Unknown additional fields refuse comparison
+`OAUTH_PRIVATE_CONTINUITY_RECORDS_INVALID`.
+`oauth.json` version and `updatedAt` now also
+participate in the snapshot equality decision;
+`oauthDocumentMetadataMatches` is a Boolean
+receipt field and mismatch rejects.
+
+Synthetic regression
+`140df7fd99e94a551b362e29c56734c450ac4736`
+spawns the same read-only comparator on fake
+independent snapshots and verifies refusal on
+new update marker, extra document, owner, client,
+or token fields while a truly equivalent pair
+still passes. No user OAuth state, installed
+program, browser, task or credentials touched.
+[CI 41387603370](https://github.com/GBY0824/chatgpt2codex/actions/runs/41387603370)
+was IN PROGRESS on first read. Linux
+compiled comparison step had already PASSED;
+check Windows/macos full conclusion separately.
+
+**Deliberate limit:** even byte/metadata-equivalent
+separately frozen files are not proof of current
+live OAuth authorization, original writer
+quiescence or trusted externally pinned backup.
+The comparison still returns
+`productionCutoverAuthorized=false`,
+`existingChatGPTAuthorizationProven=false`,
+`oldWriterQuiescenceVerified=false`,
+`externallyPinnedSnapshotVerified=false`.
+No production cutover approved. Real GOAL
+research cycles 0, native ordinary Project
+CHAT unattended rollover 0/2.
+
+---
+
+
 ## 2026-11-02 — Executable PRIVATE old/new OAuth equality check (NOT deployment)
 
 The prior cutover gate `oldAndNewRegisteredClientSetsPrivatelyMatched`
