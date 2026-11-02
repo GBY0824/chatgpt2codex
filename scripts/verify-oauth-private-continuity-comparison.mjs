@@ -47,6 +47,7 @@ function compare(a = original, b = copied, resource = pin) {
   assert.equal(response.unredactedPathsPrinted, false);
   assert.equal(response.oldWriterQuiescenceVerified, false);
   assert.equal(response.externallyPinnedSnapshotVerified, false);
+  assert.equal(response.existingChatGPTAuthorizationProven, false);
   assert.equal(response.productionCutoverAuthorized, false);
   return { status: result.status, ...response };
 }
