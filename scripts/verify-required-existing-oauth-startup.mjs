@@ -57,12 +57,30 @@ try {
   assert.match(freshDefault.stderr, /no owner token found/);
   await assertNoStateFiles();
 
-  // Existing nonsecret OAuth JSON is not enough for the server to launch:
-  // owner-token continuity is independent and also required.
+  // A valid empty OAuth document is NOT a verified migrated enrollment.
+  // Refuse it before owner-token lookup, writes or any socket bind.
   await mkdir(syntheticState, { recursive: true });
-  const document = JSON.stringify({
+  const emptyDocument = JSON.stringify({
     version: 1, updatedAt: 0,
     clients: [], accessTokens: [], refreshTokens: [],
+  });
+  await writeFile(path.join(syntheticState, "oauth.json"), emptyDocument);
+  const emptyMigration = run(["--require-existing-oauth-state"]);
+  assert.match(emptyMigration.stderr, /OAUTH_REQUIRED_CLIENT_REGISTRATIONS_MISSING/);
+  assert.equal(await readFile(path.join(syntheticState, "oauth.json"), "utf8"), emptyDocument);
+  assert.deepEqual(await readdir(syntheticState), ["oauth.json"]);
+
+  // An existing client registration is a necessary but INSUFFICIENT
+  // continuity condition. The private owner's pinned client/issuer identity
+  // must later be verified outside CI, without any token disclosure.
+  const document = JSON.stringify({
+    version: 1, updatedAt: 0,
+    clients: [{
+      clientId: "synthetic-owner-client-id",
+      clientJson: { client_id: "synthetic-owner-client-id" },
+      issuedAt: 0,
+    }],
+    accessTokens: [], refreshTokens: [],
   });
   await writeFile(path.join(syntheticState, "oauth.json"), document);
   const existingNoOwner = run(["--require-existing-oauth-state"]);
@@ -76,6 +94,7 @@ try {
     flagDowngradeDenied: true,
     stdioMisuseDenied: true,
     initialDefaultEnrollmentUnaffected: true,
+    emptyClientRegistrationsRejected: true,
     existingOwnerTokenStillRequired: true,
     realOwnerStateRead: false,
     portOpened: false,
