@@ -308,6 +308,15 @@ export class JsonOAuthStore {
       this.cache = undefined;
       throw new Error("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
     }
+    // For an OWNER-APPROVED migration preserving existing ChatGPT OAuth
+    // registrations, an otherwise valid but *empty* document is not proof
+    // of continuity. Reject it before any candidate OAuth operation.
+    // This minimum is NOT a substitute for separately pinned client ID
+    // and issuer identity from the owner's private verified snapshot.
+    if (this.requireExistingState && parsed.data.clients.length === 0) {
+      this.cache = undefined;
+      throw new Error("OAUTH_REQUIRED_CLIENT_REGISTRATIONS_MISSING");
+    }
     this.persistedOAuthPreviouslyObserved = true;
     this.cache = parsed.data;
     return this.cache;
