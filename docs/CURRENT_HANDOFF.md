@@ -1,5 +1,86 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — INDEPENDENT 3/3 VERIFIED CURRENT SOURCE (OAUTH + OFF FENCE)
+
+**New latest VERIFIABLE code/test source SHA:**
+`39bebe89c63b837c61a32b6bf2a9b616aaca8332`,
+[GitHub Actions 41366425924](https://github.com/GBY0824/chatgpt2codex/actions/runs/41366425924)
+**COMPLETED SUCCESS, all 3 independent jobs**
+(Linux source verification, native Windows regressions, full macOS).
+Read the actual Linux/Windows job logs:
+
+- Linux focused source tests **43 passed / 43**.
+  Native Windows **42 passed / 1 skipped** in 5 files,
+  with typecheck and Windows build success.
+- BOTH Linux and Windows independently report
+  `SYNTHETIC_GOAL_CROSS_PROCESS_INTENT_EXCLUSION_PASS`
+  (12 Node child processes; 4 committed ON intents and
+  9 rejected stale/busy requests, 0 actual effects).
+- BOTH report
+  `SYNTHETIC_OAUTH_CROSS_PROCESS_WRITER_EXCLUSION_PASS`
+  (3 independent clients per round × **4 synthetic rounds**
+  = 12 normal workers, plus 1 stale-lock probe;
+  24 unique clients per round; no lock leaked or removed
+  without ownership; `legacyWriterAlsoHonorsLock=false`).
+- Windows `SYNTHETIC_MULTI_SUPERVISOR_CUTOVER_FENCE_PASS
+  cases=50 negativeCases=48 positiveFixtures=2`.
+  Stage package download SHA-256 verified **3,480** files.
+  None of this ran against the owner's real installed service
+  or live authentication state.
+
+**Originally detected failure and repair is now CLOSED at the
+source/CI level:** prior docs SHA `a6233283...`,
+[Actions 41362546187](https://github.com/GBY0824/chatgpt2codex/actions/runs/41362546187)
+had Windows writer I/O failure.
+Source `6039f030...` verifies existing *regular* lock on
+Windows EPERM/EACCES before bounded contention retry; other IO
+errors still fail closed. CI child diagnostics reveal errno
+category only. Four-round real process regression at
+`a6d424a...`, independently [Actions 41366259726](https://github.com/GBY0824/chatgpt2codex/actions/runs/41366259726),
+also **COMPLETED SUCCESS 3/3**. A transient failure in an
+earlier run is not proof it can never recur; retain errno
+diagnostics and regression.
+
+**GOAL OFF revocation fence protected:** revised
+`src/server/goal-app-intent.ts` checks initial
+`lstat` separately from existing-state `readFile`;
+non-file/symlink, unreadable/race-disappearing, oversized or
+corrupted existing ledger fails closed, not a fake new
+OFF revision zero. Source commits
+`00086832...`, `25292373...`; negative tests
+`39bebe89...`. Unit tests do **not** deterministically
+inject stat/read removal between syscalls; the code's
+safe behavior is inspected and surrounding errors tested.
+
+**Actual owner Windows production unchanged:** original
+7979 old MCP, independent 7987 candidate stage, original
+Tailscale Task Scheduler and OAuth records untouched;
+PR #1 remains DRAFT UNMERGED. The installed watchdog
+differs from the GitHub research archived script, so
+live auto-relaunch authority is not fully audited.
+Previous connected local detailed AST query was DENIED
+and not bypassed. Never share old 0.2.0 OAuth writer
+state with a new candidate.
+
+**Goal still requires provider and owner gates:**
+Authenticated ordinary consumer ChatGPT Project CHAT
+context-limit/turn attestation, authenticated exact same-Project
+successor created unattended and separate approved P3
+research executor. No source or CI result establishes
+these provider capabilities. ACTUAL GOAL executions **0**;
+genuine unattended rollovers **0/2**.
+
+**Safe next step:** independently verify current fork
+PR HEAD and CI after this documentation commit;
+only with additional approved access verify deployed
+watchdog/launcher/WScript/Startup roles and OAuth issuer,
+prepare reversible original-state backup in private.
+Do not stop/install/rotate/merge or claim rollover.
+GitHub Issue #2 and this file form continuity.
+
+---
+
+
 ## 2026-11-02 KST — NEW: WINDOWS OAUTH LOCK-OPEN FLUKE + GOAL OFF FENCE RACE
 
 This continuation was explicitly requested by user, **NOT** an
