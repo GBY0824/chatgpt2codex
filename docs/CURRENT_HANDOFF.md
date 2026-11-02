@@ -1,5 +1,103 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — PRIVATE ORIGINAL/CANDIDATE OAuth STATE COMPARISON IMPLEMENTED
+
+**User requested next stage**; manual continuation only,
+NOT a provider-attested automatic normal consumer ChatGPT
+Project CHAT rollover. Repo `GBY0824/chatgpt2codex`,
+review branch `goal-app-auth-review-20261101`, PR #1
+DRAFT UNMERGED. Original Windows 7979, isolated stage
+7987, Scheduled Tasks, Startup, OAuth state and
+Chrome were NOT modified or restarted. No real
+OAuth token/hash/client ID content was read.
+
+**Verified baseline:** [Actions 41385549504](https://github.com/GBY0824/chatgpt2codex/actions/runs/41385549504),
+exact prior handoff HEAD
+`0e9001bcbc6ebf3fbe9e3edbaefd460b36c785ec`:
+**COMPLETED SUCCESS Linux/Windows/macOS 3/3**.
+
+**Meaningful previously missing executable audit:**
+Former cutover plan demanded a trusted Boolean
+`oldAndNewRegisteredClientSetsPrivatelyMatched`, yet
+there was no actual utility to compare the separately
+captured old/new private OAuth state while retaining
+all identifiers locally.
+
+- New read-only utility
+  `scripts/compare-oauth-state-readonly.mjs`
+  `6555a9b01e8157fd64e0c61ba515ba7c767fc616`,
+  hardened `9023c88ee07150a5f4f62d370d23123588c704e1`.
+  Input: 2 distinct, absolute, nonnested state roots +
+  externally supplied resource URL pin. Rejects symlink/
+  junction ancestors, missing/non-file/changed/bounded
+  state files and invalid JSON record shape.
+  Strictly compares **registered client ID sets,
+  client record details, hashed access and refresh
+  token records and owner-token record**. Also checks
+  all persisted OAuth token resources agree with
+  the input resource pin. Output is BOOLEANS only:
+  no OAuth identifiers, hashes, client details,
+  token values, full paths or error stack.
+  No writes, process changes or network.
+- Test `scripts/verify-oauth-private-continuity-comparison.mjs`
+  `f3cb1bab3ad1cf069611a479dc6b6e1119a42096`,
+  updated `ac23e54734ce13bdc60e7a22c55b5c34f6608e26`,
+  executes actual child Node tool with newly created
+  fake original/candidate OAuth roots and verifies
+  identical records PASS; distinct client, changed
+  refresh-token hash, changed owner token, foreign
+  token resource, empty-client state and same-root
+  cases all BLOCK. Explicit privacy assertions.
+- [Workflow source `931025df3cf914e7bf8561e0f36a4b0f944587d9`](https://github.com/GBY0824/chatgpt2codex/commit/931025df3cf914e7bf8561e0f36a4b0f944587d9)
+  runs this actual private-state comparator with
+  disposable state on **Linux AND Windows**.
+- New
+  [Actions 41386669956](https://github.com/GBY0824/chatgpt2codex/actions/runs/41386669956)
+  for exact latest tool+test SHA `ac23e547...`
+  had Linux source + macOS controls SUCCESS and
+  native Windows IN PROGRESS on initial check;
+  recheck exact Windows job before saying latest
+  3/3. Older first utility implementation CI
+  [41386410547](https://github.com/GBY0824/chatgpt2codex/actions/runs/41386410547)
+  was already COMPLETED SUCCESS 3/3; it did not
+  yet contain full test or junction hardening.
+
+**Critical honesty:** this tool's PASS means
+STRUCTURAL SNAPSHOT MATCH, not live quiescence or
+valid consumer ChatGPT reauthorization.
+`oldWriterQuiescenceVerified=false`,
+`externallyPinnedSnapshotVerified=false`,
+`existingChatGPTAuthorizationProven=false` and
+`productionCutoverAuthorized=false` are printed
+even if all records match. Nothing certifies
+snapshots were captured while v0.2.0 was
+stopped or that a trusted backup and issuer pin
+is stored privately. No real user OAuth directory
+was inspected, so private match actual=UNVERIFIED.
+
+**Next safe work:** verify exact latest
+code+workflow CI 3/3, follow the
+`docs/MCP_SINGLE_RUNTIME_MIGRATION.md` sequence.
+Only with separately approved read-only owner
+access and private immutable snapshot, run
+comparison; do not print/export credentials.
+Then investigate launcher, installed watchdog,
+shared WScript per-argument dispatch and
+Startup relaunch control; old installed
+watchdog differs from archived GitHub copy.
+Actual 7979 old v0.2.0 ignores candidate OAuth
+single-writer lock. Operating cutover/rollback
+requires explicit separate owner approval.
+Provider original **ordinary consumer ChatGPT
+Project CHAT** limit/turn and new native
+same-Project successor proof STILL unavailable;
+GOAL app-level intent not P3 executor credit.
+Real GOAL research execution **0**;
+genuine unattended Project CHAT rollover **0/2**.
+
+---
+
+
 ## 2026-11-02 KST — FINAL SOURCE CI VERIFIED 3/3: CLIENT CONTINUITY FENCE
 
 **EXACT latest source/policy SHA**:
