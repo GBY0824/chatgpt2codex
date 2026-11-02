@@ -57,6 +57,86 @@ describe("OAuth-scoped APP intent — NOT ChatGPT provider turn or research auth
     expect(reOn.code).toBe("APP_GOAL_INTENT_RECORDED_ONLY");
     expect(JSON.parse(await readFile(file, "utf8")).lastCommandId).not.toBe(id);
   });
+  it("notifies an approved host only for distinct persisted APP ON/OFF commands", async () => {
+    const d = await dir();
+    const notices: Array<Record<string, unknown>> = [];
+    const host = async (notice: Record<string, unknown>) => {
+      notices.push({ ...notice });
+    };
+    const on = await goalAppCommand(d, { action: "ON", expectedRevision: 0 },
+      auth, true, host);
+    expect(on).toMatchObject({
+      code: "APP_GOAL_INTENT_RECORDED_ONLY",
+      eventNotice: "APP_HOST_NOTIFIED_NO_EXECUTION",
+      researchExecutionAuthorized: false, effectsIssued: 0,
+    });
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toMatchObject({
+      source: "OAUTH_SCOPED_APP_INTENT", action: "ON", revision: 1,
+      researchExecutionAuthorized: false, originalChatTurnAttested: false,
+    });
+    expect(notices[0].clientFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(notices)).not.toContain(auth.clientId);
+    const duplicate = await goalAppCommand(d, { action: "ON", expectedRevision: 1 },
+      auth, true, host);
+    expect(duplicate.code).toBe("APP_GOAL_ALREADY_ON_NO_REPLAY");
+    expect(notices).toHaveLength(1);
+    const off = await goalAppCommand(d, { action: "OFF" }, auth, true, host);
+    expect(off.eventNotice).toBe("APP_HOST_NOTIFIED_NO_EXECUTION");
+    expect(notices).toHaveLength(2);
+    expect(notices[1]).toMatchObject({
+      action: "OFF", revision: 2,
+      researchExecutionAuthorized: false, originalChatTurnAttested: false,
+    });
+  });
+
+  it("preserves durable OFF/ON intent when a host notice fails, requiring reconciliation", async () => {
+    const d = await dir();
+    const failing = async () => { throw new Error("synthetic-test-host-refusal"); };
+    const on = await goalAppCommand(d, { action: "ON", expectedRevision: 0 },
+      auth, true, failing);
+    expect(on).toMatchObject({
+      code: "APP_GOAL_NOTICE_UNVERIFIED_RECONCILIATION_REQUIRED",
+      eventNotice: "UNVERIFIED", effectsIssued: 0,
+    });
+    expect(await call(d, "status")).toMatchObject({ requestedMode: "ON", revision: 1 });
+    // Failed notification is NOT replayed by a duplicate ON.
+    const retried = await goalAppCommand(d, { action: "ON", expectedRevision: 1 },
+      auth, true, failing);
+    expect(retried.code).toBe("APP_GOAL_ALREADY_ON_NO_REPLAY");
+    expect(await call(d, "status")).toMatchObject({ requestedMode: "ON", revision: 1 });
+    const off = await goalAppCommand(d, { action: "OFF" }, auth, true, failing);
+    expect(off.code).toBe("APP_GOAL_NOTICE_UNVERIFIED_RECONCILIATION_REQUIRED");
+    expect(await call(d, "status")).toMatchObject({ requestedMode: "OFF", revision: 2 });
+  });
+
+  it("does not hold the ON lock while the host observes the event; OFF can revoke", async () => {
+    const d = await dir();
+    let entered!: () => void;
+    let resume!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const held = new Promise<void>(resolve => { resume = resolve; });
+    const onPromise = goalAppCommand(d, { action: "ON", expectedRevision: 0 },
+      auth, true, async notice => {
+        expect(notice.action).toBe("ON");
+        entered();
+        await held;
+      });
+    await started;
+    // OFF must be able to persist even when the host is still awaiting
+    // completion of its observational callback from the earlier ON.
+    const off = await call(d, "OFF");
+    expect(off).toMatchObject({
+      code: "APP_GOAL_INTENT_RECORDED_ONLY", revision: 2,
+    });
+    resume();
+    expect(await onPromise).toMatchObject({
+      eventNotice: "APP_HOST_NOTIFIED_NO_EXECUTION",
+      researchExecutionAuthorized: false,
+    });
+    expect(await call(d, "status")).toMatchObject({ requestedMode: "OFF", revision: 2 });
+  });
+
   it("requires verified remote OAuth bearer + dedicated scope", async () => {
     const d = await dir();
     await expect(call(d, "ON", 0, undefined, false)).rejects.toBeInstanceOf(GoalAppCommandError);
