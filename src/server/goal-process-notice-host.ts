@@ -8,7 +8,7 @@
  * are supplied over stdin, never shell arguments or token-bearing logs.
  */
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type {
@@ -21,6 +21,8 @@ export interface GoalProcessHostConfig {
   executable: string;
   script: string;
   scriptSha256: string;
+  /** Explicit owner-provisioned IPC key, NEVER OAuth bearer or owner token. */
+  bridgeKeyFile: string;
 }
 
 const allowedReadiness = new Set<GoalAppReadinessCode>([
@@ -35,17 +37,21 @@ async function pinnedScript(config: GoalProcessHostConfig): Promise<void> {
   const script = path.resolve(config.script);
   if (!path.isAbsolute(config.projectRoot) || !path.isAbsolute(config.script)
       || !path.isAbsolute(config.executable) || !path.isAbsolute(config.stateDir)
+      || !path.isAbsolute(config.bridgeKeyFile)
+      || path.resolve(config.bridgeKeyFile) !== path.join(path.resolve(config.stateDir), "goal-process-bridge.key")
       || !/^[a-f0-9]{64}$/.test(config.scriptSha256)
       || !script.startsWith(root + path.sep)) {
     throw new Error("GOAL_PROCESS_HOST_OWNER_PIN_REQUIRED");
   }
-  const [rootInfo, scriptInfo, executableInfo] = await Promise.all([
+  const [rootInfo, scriptInfo, executableInfo, keyInfo] = await Promise.all([
     fs.lstat(root), fs.lstat(script), fs.lstat(config.executable),
+    fs.lstat(config.bridgeKeyFile),
   ]);
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()
       || !scriptInfo.isFile() || scriptInfo.isSymbolicLink()
       || scriptInfo.size > 1024 * 1024
-      || !executableInfo.isFile() || executableInfo.isSymbolicLink()) {
+      || !executableInfo.isFile() || executableInfo.isSymbolicLink()
+      || !keyInfo.isFile() || keyInfo.isSymbolicLink() || keyInfo.size !== 32) {
     throw new Error("GOAL_PROCESS_HOST_FILE_UNVERIFIED");
   }
   const content = await fs.readFile(script);
@@ -65,12 +71,20 @@ async function deliver(
   // replaced review candidate. The actual Python host must independently
   // recheck this MCP's durable intent ledger and its own P3 permission.
   await pinnedScript(config);
-  const envelope = JSON.stringify({
+  // The host independently verifies this HMAC with its owner-provisioned
+  // private IPC key AND checks the current durable intent ledger. This is
+  // complementary to, NEVER a replacement for, HTTP OAuth scope checking.
+  const body = JSON.stringify({
     schema: 1,
     notice,
     intentLedgerPath: path.join(config.stateDir, "goal-app-command-intent.json"),
     canonicalStagePath: path.join(config.projectRoot, "docs", "CURRENT_SYSTEM_STAGE.json"),
-  }) + "\n";
+  });
+  const key = await fs.readFile(config.bridgeKeyFile);
+  if (key.length !== 32) throw new Error("GOAL_PROCESS_HOST_BRIDGE_KEY_INVALID");
+  const signature = createHmac("sha256", key).update(body).digest("hex");
+  key.fill(0);
+  const envelope = JSON.stringify({ schema: 1, body, signature }) + "\n";
   if (Buffer.byteLength(envelope) > 4096) throw new Error("GOAL_PROCESS_HOST_ENVELOPE_TOO_LARGE");
   return await new Promise<GoalAppReadinessCode>((resolve, reject) => {
     const child = spawn(config.executable, [config.script], {
