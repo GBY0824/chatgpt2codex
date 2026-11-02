@@ -118,6 +118,15 @@ function assess(plan) {
   // registrations as an empty first-time store.
   if (plan.candidateRequiresExistingOAuthState !== true)
     block("CANDIDATE_EXISTING_OAUTH_STARTUP_FENCE_NOT_ENABLED");
+  // Nonempty is necessary but not enough: a syntactically valid document
+  // containing some DIFFERENT client would still lose ChatGPT's registered
+  // client continuity. Only a PRIVATELY pinned comparison of old/new client
+  // ID sets and issuer/resource identity can satisfy the owner's cutover.
+  if (!Number.isSafeInteger(plan.candidateRegisteredClientCount) ||
+      plan.candidateRegisteredClientCount < 1)
+    block("CANDIDATE_REGISTERED_CLIENT_COUNT_NOT_VERIFIED");
+  if (plan.oldAndNewRegisteredClientSetsPrivatelyMatched !== true)
+    block("OAUTH_REGISTERED_CLIENT_CONTINUITY_NOT_PINNED");
   return {
     syntheticPreconditionsMet: blockers.length === 0,
     blockers,
@@ -170,6 +179,8 @@ const approvedFixture = {
   rollbackRehearsed: true,
   oldAndNewNeverShareLiveState: true,
   candidateRequiresExistingOAuthState: true,
+  candidateRegisteredClientCount: 1,
+  oldAndNewRegisteredClientSetsPrivatelyMatched: true,
 };
 // Separate positive synthetic model: unrelated modes may remain Running
 // ONLY when static/runtime evidence positively excludes both 7979 relaunch
@@ -234,6 +245,10 @@ const scenarios = [
   ["CONCURRENT_OLD_AND_NEW", p => { p.oldAndNewNeverShareLiveState = false; }, "DUAL_OAUTH_WRITER_RISK"],
   ["CANDIDATE_COLD_START_MISSING_OAUTH_FENCE", p => { p.candidateRequiresExistingOAuthState = false; }, "CANDIDATE_EXISTING_OAUTH_STARTUP_FENCE_NOT_ENABLED"],
   ["CANDIDATE_COLD_START_FALSE_STRING", p => { p.candidateRequiresExistingOAuthState = "true"; }, "CANDIDATE_EXISTING_OAUTH_STARTUP_FENCE_NOT_ENABLED"],
+  ["CANDIDATE_OAUTH_CLIENTS_ZERO", p => { p.candidateRegisteredClientCount = 0; }, "CANDIDATE_REGISTERED_CLIENT_COUNT_NOT_VERIFIED"],
+  ["CANDIDATE_OAUTH_CLIENT_COUNT_UNKNOWN", p => { delete p.candidateRegisteredClientCount; }, "CANDIDATE_REGISTERED_CLIENT_COUNT_NOT_VERIFIED"],
+  ["CANDIDATE_OAUTH_CLIENT_SETS_NOT_PINNED", p => { p.oldAndNewRegisteredClientSetsPrivatelyMatched = false; }, "OAUTH_REGISTERED_CLIENT_CONTINUITY_NOT_PINNED"],
+  ["CANDIDATE_OAUTH_CLIENT_SETS_FAKE_STRING", p => { p.oldAndNewRegisteredClientSetsPrivatelyMatched = "true"; }, "OAUTH_REGISTERED_CLIENT_CONTINUITY_NOT_PINNED"],
   ["NO_QUIESCENCE_APPROVAL", p => { p.ownerQuiescenceApproval = false; }, "OWNER_QUIESCENCE_APPROVAL_REQUIRED"],
   ["NO_CUTOVER_APPROVAL", p => { p.ownerCutoverApproval = false; }, "OWNER_CUTOVER_APPROVAL_REQUIRED"],
   ["NOT_COMPLETE_INVENTORY", p => { p.inventoryComplete = false; }, "SUPERVISOR_INVENTORY_INCOMPLETE"],
