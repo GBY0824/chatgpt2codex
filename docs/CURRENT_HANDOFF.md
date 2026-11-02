@@ -1,5 +1,116 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — GOAL FIRST: LIVE WINDOWS READINESS BLOCK + DUPLICATE ON FIX
+
+**Owner's current instruction:** stop treating source-only safety test counts as
+overall progress; prioritize a REAL authenticated GOAL ON -> actual bounded
+authorized research -> evaluated publication -> event-driven NEXT, then
+genuine native ordinary consumer ChatGPT Project CHAT rollover 2/2.
+**Functional acceptance progress today: GOAL actual research runs 0/1 (0%);
+native unattended successor 0/2 (0%).** This is a pass/fail
+acceptance metric, NOT a subjective estimate of coding completeness.
+The tests and documentation are valuable safety work but do not
+increase either actual score.
+
+**FRESH ORIGINAL WINDOWS READ-ONLY GOAL READINESS PROOF:**
+Through the already connected ChatGPT To Codex 2 project
+`freqtrade-mcp`, with a tests-only project lease,
+the one bounded existing read-only command
+`python -B tools/runtime_vnext/goal_control_mcp/server.py --readiness`
+returned exit code **0**, diagnostic
+`GOAL_READINESS_BLOCKED`. The structured response included:
+- `P3 COMPLETE` (P3 subsystem is implemented, not actual
+  host-preregister execution permission)
+- `P4R ACTIVE` (rollover-first Stage currently selected),
+  `P4 PENDING` (GOAL-first autonomous orchestrator not selected),
+  and `P9 BLOCKED_UNTIL_SYSTEM_COMPLETE`;
+- `chrome.fresh_self_reported=true` but
+  `provider_authenticated=false` and
+  `CURRENT_PROJECT_SENSOR_SELF_REPORTED_SUCCESSOR_UNVERIFIED`;
+- explicit block `P4_NOT_ACTIVE` and
+  `OFFICIAL_CONSUMER_CHAT_TURN_ATTESTOR_UNAVAILABLE`;
+  a third blocker was tool-redacted and must NOT be guessed;
+- `goal_execution_authorized=false`, `effects_issued=0`,
+  `accepted_unattended_rollovers=0`, `required=2`.
+No Stage edit, shell workaround, auth read, user turn or Chrome
+operation occurred. This is a **real current owner-PC read-only
+result**, unlike GitHub source CI. The canonical research Stage
+in `GBY0824/freqtrade-mcp-research` main independently
+declares `routing_override.selected_work_item_id=P4R`,
+`P4R ACTIVE`, `P4 PENDING`, science paused, and system
+completion required. **Do not rewrite protected Stage/P3 silently**
+or manufacture an owner/grant from user messages or app
+OAuth to make the gate green. An authorized Stage owner
+must reconcile current work/claims and P4 priority.
+
+**A concrete functional-entry bug fixed in source:** before this turn
+the original MCP candidate `goalAppCommand`, already
+separately authenticated via goal OAuth scope, allowed a
+duplicate `ON` at the same `expectedRevision` to rewrite
+`goal-app-command-intent.json` with a NEW `lastCommandId`
+while leaving revision unchanged. A future event-driven research
+host could mistake these duplicated/retried app calls for
+new independent research activation commands.
+Commit `3dfd7b893a12dff5fa633e387df2f65647c8db09`
+makes a repeated ON a strict
+`APP_GOAL_ALREADY_ON_NO_REPLAY` with NO ledger rewrite
+or new command ID, no P3 permit and no side effects.
+Commit `7d03c77c41cdd3e50718f7dad5bc3140bb69a586`
+adds an actual disposable-file test that verifies byte-exact
+unchanged ledger/command ID across repeated ON, stale
+revision refusal, OFF revision fence and subsequent
+fresh ON with a new command ID.
+[CI 41390481173](https://github.com/GBY0824/chatgpt2codex/actions/runs/41390481173)
+**COMPLETED SUCCESS Linux/Windows/macOS 3/3**; hosted
+Linux focused GOAL+OAuth tests 50/50 passed. These tests
+do not assert an actual research run.
+
+**Current official platform feasibility rechecked:**
+OpenAI developer [MCP Events](https://developers.openai.com/plugins/build/mcp-events)
+currently documents event delivery for Work chats and dots,
+NOT original ordinary consumer ChatGPT Project CHAT
+context-limit and native successor creation;
+OpenAI API `POST /conversations` creates an API-managed
+conversation, not that user's existing consumer Project CHAT.
+Do not silently substitute Work, dots or an API conversation
+for the original acceptance contract.
+
+**CRITICAL shortest remaining path, not more endless negative tests:**
+1. Reconcile the *actual* owner-selected Stage P4R/P4
+   through separately approved system owner/checkpoint;
+   establish real P3 sole writer and valid one-use
+   system-development research permit without opening
+   protected science.
+2. Deploy/consent to the original **one** integrated
+   MCP goal-app OAuth scope only after separately approved
+   reversible old-v0.2.0 auth/client backup, installed
+   watcher/launcher/WScript/Startup restart provenance,
+   and safe single-writer 7979 cutover. The installed
+   v0.2.0 does NOT honor the candidate OAuth writer lock.
+3. Connect actual scoped GOAL ON to an independently
+   authorized `GoalEventEngine` host callback and verified
+   GitHub curator, demonstrate **one genuinely autonomous,
+   user-unprompted bounded decision + permitted worker +
+   evaluation + publication + NEXT event**. None exists yet.
+4. Native original ChatGPT Project CHAT automatic rollover
+   needs an independently supported provider-originating
+   limit/turn/successor attestor; no current connected MCP
+   or documented Events tool is proof of this interface.
+   Preserve genuine 0/2 unless real consecutive acceptance
+   receipts are obtained.
+
+**No installation or production mutation:** PR #1 DRAFT
+UNMERGED, original 7979 and isolated 7987 not changed,
+no OAuth client/token migration, Scheduled Task mutation,
+Chrome SEND/OPEN, owner-private snapshot or Stage
+promotion. Prior detailed installed watchdog file audit
+permission denials remain in force. Manual chat continuation,
+synthetic GitHub CI and app GOAL ON intent are NOT real
+unattended GOAL cycles.
+
+---
+
+
 ## 2026-11-02 KST — FINAL SOURCE SHA VERIFIED 3/3: UNKNOWN-FIELD AND METADATA DRIFT
 
 **Independently checked latest substantive code+tests SHA**
