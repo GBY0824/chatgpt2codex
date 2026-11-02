@@ -390,6 +390,7 @@ jobs:
           Copy-Item -Path scripts\Inspect-OneMcpCutoverReadiness.ps1 -Destination staging-release\Inspect-OneMcpCutoverReadiness.ps1
           Copy-Item -Path scripts\Inspect-OneMcpStartupReadOnly.ps1 -Destination staging-release\Inspect-OneMcpStartupReadOnly.ps1
           Copy-Item -Path scripts\inspect-oauth-state-readonly.mjs -Destination staging-release\inspect-oauth-state-readonly.mjs
+          Copy-Item -Path scripts\compare-oauth-state-readonly.mjs -Destination staging-release\compare-oauth-state-readonly.mjs
           Copy-Item -Path scripts\New-OneMcpVerifiedProgramSnapshot.ps1 -Destination staging-release\New-OneMcpVerifiedProgramSnapshot.ps1
           @'
           GOAL APP WINDOWS ISOLATED SOURCE BUNDLE
@@ -400,6 +401,10 @@ jobs:
           Isolated serve requires explicit non-7979 port, loopback host and
           loopback HTTP public origin; desktop control is disabled.
           Do not reuse the default/production owner state, port or Funnel.
+          compare-oauth-state-readonly.mjs compares TWO externally supplied,
+          separate state snapshots without writing them or printing IDs.
+          A matching snapshot is NEVER an authorization or live quiescence proof.
+          Do NOT point it at live user OAuth files without separate approval.
           A separate, owner-approved HTTPS deployment is NOT included.
           chatgpt2codex.goal records APP INTENT ONLY; no P3 authorization,
           research dispatch or consumer ChatGPT rollover is granted.
