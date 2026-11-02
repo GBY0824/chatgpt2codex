@@ -1,5 +1,59 @@
 # CURRENT_HANDOFF — single-MCP GOAL integration / Runtime V3 research
 
+## 2026-11-02 KST — ORIGINAL MCP GOAL EVENT NOTICE SOURCE CI VERIFIED 3/3
+
+**Exact meaningful source+unit test SHA**
+`b2ff3c73273c067c2f703fdaca1b26801c5e6eb6`,
+[Actions 41391113493](https://github.com/GBY0824/chatgpt2codex/actions/runs/41391113493)
+**COMPLETED SUCCESS all 3/3 Linux, native Windows,
+macOS**. Linux TypeScript typecheck, GOAL post-commit
+notification and dedupe/GOAL OFF tests and full build
+passed. Windows native GOAL/OAuth tests, source build,
+supervisor policy, bundled noninstalled archive,
+download and complete offline SHA256 roundtrip passed.
+macOS control regressions passed. This proves a
+source callback with fake approved app auth and
+no research effects, NOT a deployed GOAL execution.
+
+**Code commits:** authenticated APP post-commit
+notification `5b9ef83be43a712eba8ffad7c4e7c58872757e64`,
+optional disabled-by-default `ToolContext`
+callback `282d148a89d6adbc0844960f0a19bd70d4c8b623`,
+single original MCP tool registration
+`801642fd02b3ca6ebe670b4a46852acf9395e217`,
+focused tests `b2ff3c73273c067c2f703fdaca1b26801c5e6eb6`.
+Duplicate APP GOAL ON fix source
+`3dfd7b893a12dff5fa633e387df2f65647c8db09`,
+tests `7d03c77c41cdd3e50718f7dad5bc3140bb69a586`,
+independently [Actions 41390481173](https://github.com/GBY0824/chatgpt2codex/actions/runs/41390481173)
+SUCCESS 3/3.
+
+**Live Windows read-only checkpoint from this same turn:**
+existing `--readiness` returned
+`GOAL_READINESS_BLOCKED`, P4R ACTIVE/P4 PENDING,
+Chrome sensor self-report only, official consumer
+ChatGPT turn authority absent, actual effects 0,
+unattended rollovers 0/2.
+
+**Critical next implementation is a separately
+AUTHORIZED GoalEventEngine host injection** with
+owner P4 Stage/P3 sole-writer work permit and
+official GitHub curator. A callback type is not
+a research worker, model turn, publication, P3
+prereg or actual event-source deployment.
+Do not install a parallel MCP, silently rewrite
+protected Stage, reuse original old v0.2.0's
+OAuth state with candidate, or simulate user
+GOAL ON/replay. Original owner Windows 7979/
+isolated 7987, Chrome, Task Scheduler, OAuth
+tokens/clients and active science Stage unchanged.
+The honest acceptance score remains actual
+GOAL autonomous cycle **0/1** and native
+ordinary CHAT unattended rollover **0/2**.
+
+---
+
+
 ## 2026-11-02 KST — ACTUAL GOAL INGRESS LINK IN ORIGINAL MCP SOURCE, P4 STILL BLOCKED
 
 **Real goal acceptance progress:** autonomous research cycle
