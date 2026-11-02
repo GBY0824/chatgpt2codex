@@ -758,9 +758,10 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
     private readonly config: OAuthConfig,
     resourceServerUrl: URL,
     stateDir: string,
+    requireExistingOAuthState = false,
   ) {
     this.resourceServerUrl = resourceUrlFromServerUrl(resourceServerUrl);
-    this.oauthStore = new JsonOAuthStore(stateDir);
+    this.oauthStore = new JsonOAuthStore(stateDir, requireExistingOAuthState);
     this.clientsStore = new JsonOAuthClientsStore(this.oauthStore, config.allowedRedirectHosts);
   }
 
