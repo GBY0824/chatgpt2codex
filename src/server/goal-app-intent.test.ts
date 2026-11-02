@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { GoalAppCommandError, goalAppCommand, withGoalIntentClaim, type VerifiedAppCaller } from "./goal-app-intent.js";
+import { GoalAppCommandError, goalAppCommand, withGoalIntentClaim, type VerifiedAppCaller, type PersistedGoalAppNotice } from "./goal-app-intent.js";
 
 const auth: VerifiedAppCaller = {
   clientId: "owner-approved-client", scopes: ["chatgpt2codex", "chatgpt2codex.goal"],
@@ -59,8 +59,8 @@ describe("OAuth-scoped APP intent — NOT ChatGPT provider turn or research auth
   });
   it("notifies an approved host only for distinct persisted APP ON/OFF commands", async () => {
     const d = await dir();
-    const notices: Array<Record<string, unknown>> = [];
-    const host = async (notice: Record<string, unknown>) => {
+    const notices: PersistedGoalAppNotice[] = [];
+    const host = async (notice: Readonly<PersistedGoalAppNotice>) => {
       notices.push({ ...notice });
     };
     const on = await goalAppCommand(d, { action: "ON", expectedRevision: 0 },
