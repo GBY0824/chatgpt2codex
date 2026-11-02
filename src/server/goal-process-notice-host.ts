@@ -77,7 +77,14 @@ async function deliver(
       cwd: config.projectRoot, shell: false,
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
-      env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+      // Do not inherit OAuth tokens or unrelated service credentials.
+      env: Object.fromEntries([
+        "PATH", "Path", "SystemRoot", "WINDIR", "TEMP", "TMP",
+        "HOME", "USERPROFILE", "LANG", "LC_ALL",
+      ].filter((key) => process.env[key] !== undefined)
+        .map((key) => [key, process.env[key]!]).concat([
+          ["PYTHONDONTWRITEBYTECODE", "1"],
+        ])),
     });
     let stdout = "";
     let stderrBytes = 0;
