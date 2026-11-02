@@ -129,8 +129,10 @@ jobs:
             if (-not (Test-Path $candidate)) { throw "OpenSSL not available on runner" }
             Split-Path $candidate | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
-      - name: Windows GOAL OAuth and local HTTPS regressions
-        run: npx vitest run src/server/goal-app-intent.test.ts src/server/goal-process-notice-host.test.ts src/server/goal-stage-readonly.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts src/state/isolated-state.test.ts src/auth/oauth-store-failclosed.test.ts
+      - name: Windows GOAL app / process bridge regressions
+        run: npx vitest run src/server/goal-app-intent.test.ts src/server/goal-process-notice-host.test.ts src/server/goal-stage-readonly.test.ts src/server/tools-catalog.test.ts src/state/isolated-state.test.ts src/auth/oauth-store-failclosed.test.ts
+      - name: Windows isolated OAuth HTTPS and MCP integration
+        run: npx vitest run src/server/mcp-remote-control.test.ts
       # Does not read, stop, or overwrite the owner's installed MCP. All test
       # paths are generated under the disposable Windows runner temp root.
       - name: Synthetic Windows single-MCP cutover and rollback injections
