@@ -92,7 +92,8 @@ async function deliver(
   const envelope = JSON.stringify({ schema: 1, body, signature }) + "\n";
   if (Buffer.byteLength(envelope) > 4096) throw new Error("GOAL_PROCESS_HOST_ENVELOPE_TOO_LARGE");
   return await new Promise<GoalAppReadinessCode>((resolve, reject) => {
-    const child = spawn(config.executable, [config.script, "--engine-state-file", config.engineStateFile], {
+    const child = spawn(config.executable, [config.script, "--engine-state-file", config.engineStateFile,
+      "--original-mcp-state-dir", config.stateDir], {
       cwd: config.projectRoot, shell: false,
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
