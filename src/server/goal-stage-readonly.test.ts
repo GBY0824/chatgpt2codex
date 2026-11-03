@@ -13,12 +13,12 @@ const auth: VerifiedAppCaller = {
   expiresAt: Math.floor(Date.now()/1000)+3600,
   resource: new URL("http://127.0.0.1:7987/mcp"),
 };
-async function fixture() {
+async function fixture(createDocs = true) {
   const root=await mkdtemp(path.join(tmpdir(),"goal-stage-readonly-"));
   dirs.push(root);
   const research=path.join(root,"research");
   const state=path.join(root,"mcp-state");
-  await mkdir(path.join(research,"docs"),{recursive:true});
+  await mkdir(createDocs ? path.join(research,"docs") : research,{recursive:true});
   await mkdir(state,{recursive:true});
   return {root,research,state,stage:path.join(research,"docs","CURRENT_SYSTEM_STAGE.json")};
 }
@@ -55,13 +55,13 @@ describe("original MCP APP goal -> canonical Stage read-only host (no research)"
     expect(await readFile(filename,"utf8")).toBe(bytes);
   });
 
-  it("P4 ACTIVE without an original P3 owner still cannot authorize research",async()=>{
+  it("observes P4 without inventing a missing P3 approval or authorizing work",async()=>{
     const f=await fixture();
-    await writeFile(f.stage,JSON.stringify(stage("P4","ACTIVE","COMPLETE")));
+    await writeFile(f.stage,JSON.stringify(stage("P4","ACTIVE","PENDING")));
     const response=await goalAppCommand(f.state,{action:"ON",expectedRevision:0},
       auth,true,createGoalStageReadOnlyHost(f.research));
     expect(response).toMatchObject({
-      stageReadiness:"GOAL_STAGE_P4_OBSERVED_P3_PERMISSION_MISSING",
+      stageReadiness:"GOAL_STAGE_P4_OBSERVED_EXECUTION_UNVERIFIED",
       researchExecutionAuthorized:false,effectsIssued:0,
     });
   });
@@ -89,11 +89,20 @@ describe("original MCP APP goal -> canonical Stage read-only host (no research)"
     await run();
   });
 
-  it("linked Stage file refuses rather than following alternate content",async()=>{
-    const f=await fixture();
-    const linked=path.join(f.root,"external-stage.json");
-    await writeFile(linked,JSON.stringify(stage("P4","ACTIVE","COMPLETE")));
-    await symlink(linked,f.stage,"file");
+  it("linked Stage or docs refuses rather than following alternate content",async()=>{
+    const windows=process.platform === "win32";
+    const f=await fixture(!windows);
+    if (windows) {
+      // A disposable directory Junction needs no administrator/developer mode.
+      const linked=path.join(f.root,"external-docs");
+      await mkdir(linked);
+      await writeFile(path.join(linked,"CURRENT_SYSTEM_STAGE.json"),JSON.stringify(stage("P4","ACTIVE","PENDING")));
+      await symlink(linked,path.dirname(f.stage),"junction");
+    } else {
+      const linked=path.join(f.root,"external-stage.json");
+      await writeFile(linked,JSON.stringify(stage("P4","ACTIVE","PENDING")));
+      await symlink(linked,f.stage,"file");
+    }
     const result=await goalAppCommand(f.state,{action:"ON",expectedRevision:0},auth,true,
       createGoalStageReadOnlyHost(f.research));
     expect(result.stageReadiness).toBe("GOAL_STAGE_ROUTING_UNVERIFIED");

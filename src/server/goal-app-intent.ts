@@ -37,6 +37,7 @@ export type GoalAppReadinessCode =
   | "GOAL_APP_OFF_OBSERVED_NO_EXECUTION"
   | "GOAL_STAGE_P4R_ACTIVE_P4_PENDING"
   | "GOAL_STAGE_P4_OBSERVED_P3_PERMISSION_MISSING"
+  | "GOAL_STAGE_P4_OBSERVED_EXECUTION_UNVERIFIED"
   | "GOAL_STAGE_ROUTING_UNVERIFIED";
 export type GoalAppNoticeHost = (
   notice: Readonly<PersistedGoalAppNotice>,

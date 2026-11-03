@@ -982,3 +982,22 @@ against arbitrary OS-level file replacement, a full power loss and
 restart, or live ChatGPT client continuity. Never reuse the old
 production state with an active legacy writer. PR remains draft and
 rollover evidence remains 0/2.
+
+## P4 observation and execution permission are distinct
+
+A Stage-only observer cannot tell whether the independent owner P3 step has
+already succeeded. P4 ACTIVE now reports
+`GOAL_STAGE_P4_OBSERVED_EXECUTION_UNVERIFIED`, without asserting that P3 is
+missing. This remains a diagnostic: `researchExecutionAuthorized=false` and
+`effectsIssued=0`. A separate governed work permit and every existing execution,
+publication and sole-writer gate remain required.
+
+Older owner-pinned Python hosts may still acknowledge
+`GOAL_STAGE_P4_OBSERVED_P3_PERMISSION_MISSING`. The signed process bridge accepts
+that legacy code and normalizes it to the new non-authorizing observation,
+without replacing the pinned host or changing its privileges.
+
+The linked-path regression uses a disposable docs-directory Junction on
+Windows, avoiding administrator/developer-mode changes. Other platforms retain
+the linked Stage-file scenario. Both must refuse linked input; these tests
+neither follow protected alternate data nor establish research authority.

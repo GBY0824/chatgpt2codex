@@ -31,6 +31,7 @@ const allowedReadiness = new Set<GoalAppReadinessCode>([
   "GOAL_APP_OFF_OBSERVED_NO_EXECUTION",
   "GOAL_STAGE_P4R_ACTIVE_P4_PENDING",
   "GOAL_STAGE_P4_OBSERVED_P3_PERMISSION_MISSING",
+  "GOAL_STAGE_P4_OBSERVED_EXECUTION_UNVERIFIED",
   "GOAL_STAGE_ROUTING_UNVERIFIED",
 ]);
 
@@ -151,7 +152,11 @@ async function deliver(
               result.code === "GOAL_APP_OFF_OBSERVED_NO_EXECUTION")) {
           return finish(new Error("GOAL_PROCESS_HOST_INVALID_ACK"));
         }
-        finish(undefined, result.code as GoalAppReadinessCode);
+        // Older pinned hosts use this over-specific diagnostic. Keep their
+        // acknowledgement compatible without asserting missing P3 authority.
+        const readiness = result.code === "GOAL_STAGE_P4_OBSERVED_P3_PERMISSION_MISSING"
+          ? "GOAL_STAGE_P4_OBSERVED_EXECUTION_UNVERIFIED" : result.code;
+        finish(undefined, readiness as GoalAppReadinessCode);
       } catch {
         finish(new Error("GOAL_PROCESS_HOST_INVALID_JSON"));
       }

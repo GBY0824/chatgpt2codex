@@ -47,7 +47,7 @@ console.log(JSON.stringify({
     "GOAL_STAGE_P4R_ACTIVE_P4_PENDING",
 }));
 `;
-async function fixture() {
+async function fixture(readiness = "GOAL_STAGE_P4R_ACTIVE_P4_PENDING") {
   const root = await mkdtemp(path.join(tmpdir(), "goal-process-bridge-"));
   roots.push(root);
   const research = path.join(root, "research");
@@ -57,15 +57,28 @@ async function fixture() {
   const bridgeKeyFile=path.join(state,"goal-process-bridge.key");
   await writeFile(bridgeKeyFile,randomBytes(32));
   const script = path.join(research, "trusted-host.mjs");
-  await writeFile(script, adapter);
+  const source = adapter.replace("GOAL_STAGE_P4R_ACTIVE_P4_PENDING", readiness);
+  await writeFile(script, source);
   const cfg: GoalProcessHostConfig = {
     projectRoot: research, stateDir: state, executable: process.execPath,
-    script, scriptSha256: createHash("sha256").update(adapter).digest("hex"),
+    script, scriptSha256: createHash("sha256").update(source).digest("hex"),
     bridgeKeyFile, engineStateFile:path.join(research,"staging","goal-engine-state.json"),
   };
   return {root, research, state, script, cfg};
 }
 describe("single original MCP -> owner-pinned GoalEventEngine process bridge", () => {
+  it.each([
+    "GOAL_STAGE_P4_OBSERVED_P3_PERMISSION_MISSING",
+    "GOAL_STAGE_P4_OBSERVED_EXECUTION_UNVERIFIED",
+  ])("reports %s as unverified execution, never an auth conclusion", async (code) => {
+    const f = await fixture(code);
+    const host = await createGoalProcessNoticeHost(f.cfg);
+    const result = await goalAppCommand(f.state, {action:"ON", expectedRevision:0}, auth, true, host);
+    expect(result).toMatchObject({
+      stageReadiness:"GOAL_STAGE_P4_OBSERVED_EXECUTION_UNVERIFIED",
+      researchExecutionAuthorized:false, originalChatTurnAttested:false, effectsIssued:0,
+    });
+  });
   it("forwards only committed authenticated distinct APP notices and fences OFF", async () => {
     const f = await fixture();
     const host = await createGoalProcessNoticeHost(f.cfg);

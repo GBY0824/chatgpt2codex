@@ -53,9 +53,9 @@ export function createGoalStageReadOnlyHost(projectRoot: string): GoalAppNoticeH
         code = "GOAL_STAGE_P4R_ACTIVE_P4_PENDING";
       } else if (selected === "P4" && itemStatus(p4[0]) === "ACTIVE" &&
           itemStatus(p3[0]) === "COMPLETE") {
-        // P4 is necessary, never sufficient: original research P3 owner,
-        // work permit, sole writer, curator and model/CHAT authority MISSING.
-        code = "GOAL_STAGE_P4_OBSERVED_P3_PERMISSION_MISSING";
+        // Stage observation cannot determine whether P3 was authenticated.
+        // A separate work permit, writer and publication gates remain unchecked.
+        code = "GOAL_STAGE_P4_OBSERVED_EXECUTION_UNVERIFIED";
       }
     } catch {
       // Never leak private paths, filesystem contents or policy exceptions.
