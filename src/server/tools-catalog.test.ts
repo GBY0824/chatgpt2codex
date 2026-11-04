@@ -261,3 +261,33 @@ describe("tool catalog", () => {
     });
   });
 });
+
+describe("GOAL app OAuth scope isolation", () => {
+  it("registers a separate OAuth-scoped app intent tool without altering basic tools", async () => {
+    const server = await createServer(makeCtx());
+    const registry = (server as unknown as {
+      _registeredTools?: Record<string, {
+        _meta?: Record<string, unknown>;
+        annotations?: { readOnlyHint?: boolean };
+      }>;
+    })._registeredTools;
+    expect(registry?.goal_app_command).toBeDefined();
+    expect(registry?.goal_app_command?._meta?.securitySchemes).toMatchObject([
+      { type: "oauth2", scopes: ["chatgpt2codex", "chatgpt2codex.goal"] },
+    ]);
+    expect(registry?.goal_app_command?.annotations?.readOnlyHint).toBe(false);
+    expect(registry?.goal_intake).toBeDefined();
+    const handlers = (server.server as unknown as {
+      _requestHandlers?: Map<string, (request: { method: string; params: Record<string, never> }) =>
+        Promise<{ tools: Array<{ name: string; securitySchemes?: unknown }> }>>;
+    })._requestHandlers;
+    const listed = await handlers?.get("tools/list")?.({ method: "tools/list", params: {} });
+    const byName = new Map((listed?.tools ?? []).map(t => [t.name, t]));
+    expect(byName.get("goal_app_command")?.securitySchemes).toMatchObject([
+      { type: "oauth2", scopes: ["chatgpt2codex", "chatgpt2codex.goal"] },
+    ]);
+    expect(byName.get("goal_intake")?.securitySchemes).toMatchObject([
+      { type: "oauth2", scopes: ["chatgpt2codex"] },
+    ]);
+  });
+});

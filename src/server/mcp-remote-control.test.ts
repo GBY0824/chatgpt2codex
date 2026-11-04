@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { execFileSync } from "node:child_process";
+import { createServer as createHttpsServer, request as httpsRequest } from "node:https";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { storeOwnerToken } from "../auth/owner-token.js";
 import type { ToolContext } from "../types.js";
@@ -101,7 +103,7 @@ async function registerOAuthClient(baseUrl: string): Promise<{ clientId: string;
   return { clientId: String(body.client_id), redirectUri };
 }
 
-async function getMcpAccessToken(baseUrl: string): Promise<string> {
+async function getMcpAccessToken(baseUrl: string, scopes = "chatgpt2codex"): Promise<string> {
   const client = await registerOAuthClient(baseUrl);
   const verifier = randomPkceVerifier();
   const url = new URL("/authorize", baseUrl);
@@ -110,7 +112,7 @@ async function getMcpAccessToken(baseUrl: string): Promise<string> {
   url.searchParams.set("redirect_uri", client.redirectUri);
   url.searchParams.set("code_challenge", pkceChallenge(verifier));
   url.searchParams.set("code_challenge_method", "S256");
-  url.searchParams.set("scope", "chatgpt2codex");
+  url.searchParams.set("scope", scopes);
   url.searchParams.set("state", "unit-test-state");
   url.searchParams.set("resource", `${baseUrl}/mcp`);
 
@@ -217,4 +219,279 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent?.lease?.preset).toBe("full-write");
   }, 20_000);
+  it("enforces OAuth goal scope through the real HTTP MCP transport and fences stale ON", async () => {
+    const ctx = makeCtx(stateDir, projectRoot);
+    const app = await startApp(ctx);
+    stop = app.stop;
+
+    // A previously authorized basic-scope client is still allowed to use
+    // existing tools but must NOT control the distinct APP GOAL intent.
+    const defaultToken = await getMcpAccessToken(app.baseUrl);
+    client = await connectMcpClient(app.baseUrl, defaultToken);
+    const oldScope = (await client.callTool({
+      name: "goal_app_command",
+      arguments: { action: "ON", expectedRevision: 0 },
+    })) as { isError?: boolean; structuredContent?: { code?: string }; _meta?: Record<string, unknown> };
+    expect(oldScope.isError).toBe(true);
+    expect(oldScope.structuredContent?.code).toBe("APP_GOAL_OAUTH_SCOPE_OR_AUTH_MISSING");
+    expect(oldScope._meta?.["mcp/www_authenticate"]).toEqual(expect.arrayContaining([
+      expect.stringContaining('error="insufficient_scope"'),
+    ]));
+    expect(oldScope._meta?.["mcp/www_authenticate"]).toEqual(expect.arrayContaining([
+      expect.stringContaining('scope="chatgpt2codex chatgpt2codex.goal"'),
+    ]));
+    await client.close();
+    client = undefined;
+
+    // Explicit owner-approved additional OAuth scope: server-verified
+    // authInfo, not owner identity fields supplied as model tool inputs.
+    const goalToken = await getMcpAccessToken(
+      app.baseUrl, "chatgpt2codex chatgpt2codex.goal",
+    );
+    client = await connectMcpClient(app.baseUrl, goalToken);
+    const status = (await client.callTool({
+      name: "goal_app_command", arguments: { action: "status" },
+    })) as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    expect(status.isError).toBeFalsy();
+    expect(status.structuredContent).toMatchObject({
+      code: "APP_GOAL_INTENT_STATUS_ONLY", requestedMode: "OFF",
+      revision: 0, researchExecutionAuthorized: false, effectsIssued: 0,
+    });
+    const on = (await client.callTool({
+      name: "goal_app_command",
+      arguments: { action: "ON", expectedRevision: 0 },
+    })) as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    expect(on.isError).toBeFalsy();
+    expect(on.structuredContent).toMatchObject({
+      code: "APP_GOAL_INTENT_RECORDED_ONLY", requestedMode: "ON",
+      revision: 1, researchExecutionAuthorized: false,
+      originalChatTurnAttested: false, effectsIssued: 0,
+    });
+    const off = (await client.callTool({
+      name: "goal_app_command", arguments: { action: "OFF" },
+    })) as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    expect(off.structuredContent).toMatchObject({
+      code: "APP_GOAL_INTENT_RECORDED_ONLY", requestedMode: "OFF",
+      revision: 2, researchExecutionAuthorized: false, effectsIssued: 0,
+    });
+    const staleOn = (await client.callTool({
+      name: "goal_app_command",
+      arguments: { action: "ON", expectedRevision: 1 },
+    })) as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    expect(staleOn.structuredContent).toMatchObject({
+      code: "APP_GOAL_REVISION_STALE", requestedMode: "OFF",
+      researchExecutionAuthorized: false, effectsIssued: 0,
+    });
+  }, 25_000);
+
+  it("rechecks per-request OAuth scope when a low-scope bearer reuses a GOAL-scoped MCP session", async () => {
+    const ctx = makeCtx(stateDir, projectRoot);
+    const app = await startApp(ctx);
+    stop = app.stop;
+
+    const goalToken = await getMcpAccessToken(app.baseUrl, "chatgpt2codex chatgpt2codex.goal");
+    const basicToken = await getMcpAccessToken(app.baseUrl, "chatgpt2codex");
+    const transport = new StreamableHTTPClientTransport(new URL(app.baseUrl + "/mcp"), {
+      requestInit: { headers: { authorization: "Bearer " + goalToken } },
+    });
+    client = new Client({ name: "per-request-scope-regression", version: "0.0.0" });
+    await client.connect(transport);
+    const sessionId = transport.sessionId;
+    expect(sessionId).toBeTruthy();
+
+    const before = await client.callTool({
+      name: "goal_app_command", arguments: { action: "status" },
+    });
+    expect(before.structuredContent).toMatchObject({ requestedMode: "OFF", revision: 0 });
+
+    // The session was created with a GOAL-scoped owner token. A second
+    // request carrying a basic-only bearer must not inherit that privilege.
+    const response = await fetch(app.baseUrl + "/mcp", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + basicToken,
+        "mcp-session-id": String(sessionId),
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0", id: 9731, method: "tools/call",
+        params: { name: "goal_app_command", arguments: { action: "ON", expectedRevision: 0 } },
+      }),
+    });
+    const raw = await response.text();
+    const dataLines = raw.split(/\r?\n/u).filter((line) => /^data:\s*/u.test(line));
+    const decoded = dataLines.length
+      ? JSON.parse(dataLines[dataLines.length - 1]!.replace(/^data:\s*/u, ""))
+      : raw.trim().startsWith("{") ? JSON.parse(raw) : null;
+    const result = decoded?.result;
+    expect(
+      response.status === 401 ||
+      (result?.isError === true &&
+       result?.structuredContent?.code === "APP_GOAL_OAUTH_SCOPE_OR_AUTH_MISSING"),
+    ).toBe(true);
+
+    const after = await client.callTool({
+      name: "goal_app_command", arguments: { action: "status" },
+    });
+    expect(after.structuredContent).toMatchObject({ requestedMode: "OFF", revision: 0 });
+  }, 25_000);
+
+  it("serves scoped OAuth metadata over CA-verified isolated HTTPS and denies anonymous MCP", async () => {
+    // A temporary CA-trusted TLS listener exercises HTTPS origin, OAuth
+    // discovery and bearer protection; this never contacts the user's Funnel.
+    const certConfig = path.join(stateDir, "test-openssl.cnf");
+    const certPath = path.join(stateDir, "test-cert.pem");
+    const keyPath = path.join(stateDir, "test-key.pem");
+    await fs.writeFile(certConfig, [
+      "[req]", "distinguished_name=dn", "x509_extensions=v3_req", "prompt=no",
+      "[dn]", "CN=localhost", "[v3_req]",
+      "subjectAltName=DNS:localhost,IP:127.0.0.1",
+      "basicConstraints=critical,CA:TRUE",
+      "keyUsage=critical,digitalSignature,keyEncipherment,keyCertSign,cRLSign",
+      "extendedKeyUsage=serverAuth", "",
+    ].join("\n"));
+    execFileSync("openssl", [
+      "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256",
+      "-days", "1", "-keyout", keyPath, "-out", certPath,
+      "-config", certConfig, "-extensions", "v3_req",
+    ], { stdio: "ignore", timeout: 45_000 });
+    const cert = await fs.readFile(certPath);
+    const key = await fs.readFile(keyPath);
+    const port = await getFreePort();
+    const base = "https://127.0.0.1:" + port;
+    const ctx = makeCtx(stateDir, projectRoot);
+    const running = createHttpServer(ctx, defaultHttpServerConfig({
+      host: "127.0.0.1", port, publicUrl: base,
+    }));
+    const tls = createHttpsServer({ cert, key }, running.app);
+    await new Promise<void>((resolve) => tls.listen(port, "127.0.0.1", resolve));
+    stop = async () => {
+      await new Promise<void>((resolve) => tls.close(() => resolve()));
+      running.close();
+    };
+    function secureRequest(
+      endpoint: string, method = "GET", payload?: string,
+      additionalHeaders: Record<string, string> = {},
+    ): Promise<{ status: number; body: string; location?: string; sessionId?: string }> {
+      return new Promise((resolve, reject) => {
+        const request = httpsRequest(base + endpoint, {
+          method, ca: cert, rejectUnauthorized: true, agent: false,
+          headers: {
+            ...(payload === undefined ? {} : {
+              "content-type": "application/json",
+              "content-length": String(Buffer.byteLength(payload)),
+              accept: "application/json, text/event-stream",
+            }),
+            ...additionalHeaders,
+          },
+        }, (response) => {
+          const chunks: Buffer[] = [];
+          response.on("data", (chunk: Buffer) => chunks.push(chunk));
+          response.on("end", () => resolve({
+            status: response.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString("utf8"),
+            location: response.headers.location,
+            sessionId: response.headers["mcp-session-id"] as string | undefined,
+          }));
+        });
+        request.on("error", reject);
+        request.setTimeout(10_000, () => request.destroy(new Error("TLS test request timed out")));
+        request.end(payload);
+      });
+    }
+    const discovery = await secureRequest("/.well-known/openid-configuration");
+    expect(discovery.status).toBe(200);
+    const metadata = JSON.parse(discovery.body) as {
+      issuer: string; scopes_supported: string[];
+    };
+    expect(metadata.issuer).toBe(new URL(base).toString());
+    expect(metadata.scopes_supported).toEqual(expect.arrayContaining([
+      "chatgpt2codex", "chatgpt2codex.goal",
+    ]));
+    const unauthenticated = await secureRequest("/mcp", "POST", "{}");
+    expect(unauthenticated.status).toBe(401);
+    // Real TLS end-to-end OAuth 2.1 authorization-code + PKCE(S256) with a
+    // synthetic locally verified owner token. TLS verification is enabled.
+    // No production identity/credentials, endpoint or user ChatGPT session.
+    const redirectUri = "https://chatgpt.com/aip/gpt/oauth/callback";
+    const reg = await secureRequest("/register", "POST", JSON.stringify({
+      redirect_uris: [redirectUri],
+      token_endpoint_auth_method: "none",
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      client_name: "isolated-https-goal-test",
+    }));
+    expect(reg.status).toBeGreaterThanOrEqual(200);
+    expect(reg.status).toBeLessThan(300);
+    const clientId = String((JSON.parse(reg.body) as { client_id?: string }).client_id);
+    expect(clientId).not.toBe("undefined");
+    const verifier = randomPkceVerifier();
+    const authUrl = new URL("/authorize", base);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("code_challenge", pkceChallenge(verifier));
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("scope", "chatgpt2codex chatgpt2codex.goal");
+    authUrl.searchParams.set("resource", base + "/mcp");
+    authUrl.searchParams.set("state", "isolated-tls-test-state");
+    const page = await secureRequest(
+      authUrl.pathname + authUrl.search, "GET", undefined, { origin: "https://chatgpt.com" },
+    );
+    expect(page.status).toBe(200);
+    const csrf = page.body.match(/name="csrf_token" value="([^"]+)"/u)?.[1];
+    expect(csrf).toBeTruthy();
+    const approveForm = new URLSearchParams(authUrl.searchParams);
+    approveForm.set("csrf_token", String(csrf));
+    approveForm.set("owner_token", OWNER_TOKEN);
+    const approved = await secureRequest("/authorize", "POST", approveForm.toString(), {
+      origin: "https://chatgpt.com",
+      "content-type": "application/x-www-form-urlencoded",
+    });
+    expect(approved.status).toBe(302);
+    const code = new URL(String(approved.location)).searchParams.get("code");
+    expect(code).toBeTruthy();
+    const tokenForm = new URLSearchParams({
+      grant_type: "authorization_code", client_id: clientId,
+      redirect_uri: redirectUri, code: String(code),
+      code_verifier: verifier, resource: base + "/mcp",
+    });
+    const granted = await secureRequest("/token", "POST", tokenForm.toString(), {
+      "content-type": "application/x-www-form-urlencoded",
+    });
+    expect(granted.status).toBe(200);
+    const token = (JSON.parse(granted.body) as { access_token?: string }).access_token;
+    expect(token).toBeTruthy();
+    const authHeaders = { authorization: "Bearer " + token };
+    const init = await secureRequest("/mcp", "POST", JSON.stringify({
+      jsonrpc: "2.0", id: 1, method: "initialize", params: {
+        protocolVersion: "2025-06-18", capabilities: {},
+        clientInfo: { name: "isolated-https-goal-test", version: "1" },
+      },
+    }), authHeaders);
+    expect(init.status).toBe(200);
+    expect(init.sessionId).toBeTruthy();
+    const sessionHeaders = { ...authHeaders, "mcp-session-id": String(init.sessionId) };
+    const initialized = await secureRequest("/mcp", "POST", JSON.stringify({
+      jsonrpc: "2.0", method: "notifications/initialized",
+    }), sessionHeaders);
+    expect([200, 202, 204]).toContain(initialized.status);
+    const statusResult = await secureRequest("/mcp", "POST", JSON.stringify({
+      jsonrpc: "2.0", id: 2, method: "tools/call",
+      params: { name: "goal_app_command", arguments: { action: "status" } },
+    }), sessionHeaders);
+    expect(statusResult.status).toBe(200);
+    const dataLine = statusResult.body.split(/\r?\n/u).find(line => line.startsWith("data: "));
+    const envelope = JSON.parse(dataLine ? dataLine.slice(6) : statusResult.body) as {
+      result?: { isError?: boolean; structuredContent?: Record<string, unknown> };
+    };
+    expect(envelope.result?.isError).toBeFalsy();
+    expect(envelope.result?.structuredContent).toMatchObject({
+      requestedMode: "OFF", revision: 0,
+      originalChatTurnAttested: false, researchExecutionAuthorized: false, effectsIssued: 0,
+    });
+
+  }, 75_000);
+
 });

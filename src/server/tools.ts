@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { getOAuthProtectedResourceMetadataUrl } from "@modelcontextprotocol/sdk/server/auth/router.js";
+import { resourceUrlFromServerUrl } from "@modelcontextprotocol/sdk/shared/auth-utils.js";
 import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 import {
@@ -29,6 +31,7 @@ import { prepareChatGptImagesApp } from "../assets/chatgpt-images-app.js";
 import { listCommands, runCommand } from "../exec/command-runner.js";
 import { runLocalShell } from "../exec/local-shell.js";
 import { createE2eScreenshotShare } from "../e2e/screenshot-share.js";
+import { goalAppCommand, GOAL_APP_SCHEMES, GoalAppCommandError } from "./goal-app-intent.js";
 import { addToolCallProof, TOOL_AVAILABILITY_GATE } from "./tool-proof.js";
 import {
   captureE2eAppScreenshot,
@@ -253,7 +256,7 @@ function installChatGptToolListHandler(s: McpServer): void {
             title: tool.title,
             description: tool.description,
             inputSchema: schemaToJsonSchema(tool.inputSchema, "input"),
-            securitySchemes: CHATGPT2CODEX_SECURITY_SCHEMES,
+            securitySchemes: tool._meta?.securitySchemes ?? CHATGPT2CODEX_SECURITY_SCHEMES,
             annotations: tool.annotations,
             execution: tool.execution,
             _meta: {
@@ -921,6 +924,66 @@ export function registerTools(server: unknown, ctx: ToolContext): void {
           "chatgpt2codex can operate as a project-confined coding agent: select project, read rules/code, edit, run local shell, commit, and push.",
         ),
       );
+    },
+  );
+
+  // Distinct owner-approved APP intent. Never a provider-certified CHAT turn
+  // and never authority to transition P3/Stage or run an autonomous worker.
+  registerTool(
+    "goal_app_command",
+    {
+      title: "Record research GOAL app intent (not execution)",
+      description:
+        "Read GOAL app status or record ON/OFF. Requires separate approved OAuth goal scope. Never executes research, changes P3/Stage, or counts ordinary ChatGPT rollover. ON requires the current expectedRevision.",
+      annotations: LOCAL_STATE_ANNOTATIONS,
+      _meta: chatGptToolMeta(
+        "Checking GOAL app intent...", "GOAL app intent checked",
+        { securitySchemes: GOAL_APP_SCHEMES },
+      ),
+      inputSchema: {
+        action: z.enum(["status", "ON", "OFF"]),
+        expectedRevision: z.number().int().min(0).optional(),
+      },
+    },
+    async (input, extra) => {
+      return withErrorMapping(ctx, "goal_app_command", input, async () => {
+        try {
+          const value = await goalAppCommand(
+            ctx.stateDir, input, extra.authInfo, ctx.remote === true,
+            ctx.goalAppNoticeHost,
+          );
+          return makeResult(value, `GOAL app intent: ${String(value.code)}`);
+        } catch (error) {
+          if (error instanceof GoalAppCommandError) {
+            const denied = makeResult(
+              { code: error.code, accepted: false, effectsIssued: 0 },
+              `GOAL app intent denied: ${error.code}`, true,
+            );
+            // Tool-level ChatGPT OAuth re-consent needs BOTH the dedicated
+            // securitySchemes and the response-level www_authenticate hint.
+            // Derive the resource only from server-verified extra.authInfo,
+            // never from model input or arbitrary request arguments.
+            const resource = extra.authInfo?.resource;
+            const isTrustworthyOrigin = resource instanceof URL &&
+              (resource.protocol === "https:" ||
+                (resource.protocol === "http:" &&
+                 (resource.hostname === "127.0.0.1" || resource.hostname === "localhost")));
+            if (error.code === "APP_GOAL_OAUTH_SCOPE_OR_AUTH_MISSING" &&
+                ctx.remote === true && isTrustworthyOrigin) {
+              const metadataUrl = getOAuthProtectedResourceMetadataUrl(
+                resourceUrlFromServerUrl(resource),
+              );
+              denied._meta = {
+                "mcp/www_authenticate": [
+                  `Bearer resource_metadata="${metadataUrl.toString()}", scope="chatgpt2codex chatgpt2codex.goal", error="insufficient_scope", error_description="Owner must approve the separate GOAL application scope"`,
+                ],
+              };
+            }
+            return denied;
+          }
+          throw error;
+        }
+      });
     },
   );
 

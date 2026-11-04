@@ -1,0 +1,604 @@
+name: GOAL app auth review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/server/goal-app-intent.ts"
+      - "src/server/goal-process-notice-host.ts"
+      - "src/server/goal-process-notice-host.test.ts"
+      - "src/server/goal-app-intent.test.ts"
+      - "src/server/http.ts"
+      - "src/server/tools.ts"
+      - "src/server/tools-catalog.test.ts"
+      - "src/server/mcp-remote-control.test.ts"
+      - "src/cli.ts"
+      - "src/auth/oauth-store.ts"
+      - "scripts/verify-oauth-writer-lock.mjs"
+      - "scripts/verify-goal-intent-cross-process.mjs"
+      - "scripts/verify-required-existing-oauth-startup.mjs"
+      - "scripts/verify-goal-stage-cli-preflight.mjs"
+      - "scripts/inspect-oauth-state-readonly.mjs"
+      - "scripts/verify-oauth-readonly-migration-clients.mjs"
+      - "scripts/compare-oauth-state-readonly.mjs"
+      - "scripts/verify-oauth-private-continuity-comparison.mjs"
+      - "src/auth/oauth-store-failclosed.test.ts"
+      - "scripts/verify-corrupt-oauth-cli-rotation.mjs"
+      - "src/state/isolated-state.ts"
+      - "src/state/isolated-state.test.ts"
+      - "scripts/Prepare-GoalAppOfflineStage.ps1"
+      - "scripts/goal_app_local_oauth_smoke_20261101.mjs"
+      - "scripts/verify-legacy-mcp-compat.mjs"
+      - "scripts/verify-legacy-auth-continuity.mjs"
+      - "scripts/inspect-oauth-state-readonly.mjs"
+      - "scripts/verify-synthetic-windows-cutover.mjs"
+      - "scripts/verify-synthetic-windows-crash-recovery.mjs"
+      - "scripts/verify-synthetic-windows-locks.mjs"
+      - "scripts/verify-integrated-synthetic-mcp-upgrade.mjs"
+      - "scripts/Inspect-OneMcpCutoverReadiness.ps1"
+      - "scripts/Inspect-OneMcpStartupReadOnly.ps1"
+      - "scripts/verify-synthetic-supervisor-quiescence.mjs"
+      - "scripts/New-OneMcpVerifiedProgramSnapshot.ps1"
+      - "docs/GOAL_APP_AUTH_REVIEW.md"
+      - "docs/MCP_SINGLE_RUNTIME_MIGRATION.md"
+      - ".github/workflows/goal-app-auth-review.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Full TypeScript typecheck
+        run: npm run typecheck
+      - name: GOAL intent and MCP tool catalog regressions
+        run: npx vitest run src/server/goal-app-intent.test.ts src/server/goal-process-notice-host.test.ts src/server/goal-stage-readonly.test.ts src/server/tools-catalog.test.ts src/server/mcp-remote-control.test.ts src/state/isolated-state.test.ts src/auth/oauth-store-failclosed.test.ts
+      - name: Full source build (no deployment)
+        run: npm run build
+      - name: Independent GOAL app-intent writers and stale-lock refusal (synthetic only)
+        run: node scripts/verify-goal-intent-cross-process.mjs .
+      - name: Existing OAuth migration startup fail-closed before any writes or socket bind
+        run: node scripts/verify-required-existing-oauth-startup.mjs .
+      - name: GOAL read-only Stage host compiled CLI fails closed before any writes
+        run: node scripts/verify-goal-stage-cli-preflight.mjs .
+      - name: Read-only OAuth migration client and issuer continuity (synthetic only)
+        run: node scripts/verify-oauth-readonly-migration-clients.mjs .
+      - name: Private baseline-and-candidate OAuth state continuity comparison (synthetic only)
+        run: node scripts/verify-oauth-private-continuity-comparison.mjs .
+      - name: Real CLI rotation must refuse corrupt synthetic OAuth store
+        run: node scripts/verify-corrupt-oauth-cli-rotation.mjs .
+      - name: Separate candidate processes serialize synthetic OAuth client writes
+        run: node scripts/verify-oauth-writer-lock.mjs .
+      # Verify the candidate source is an additive upgrade of the ACTUAL
+      # checked-out baseline main; do not trust a hand-maintained tool list.
+      - name: Checkout current legacy main for compatibility contract
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: legacy-base
+          persist-credentials: false
+      - name: Build legacy main in CI sandbox
+        working-directory: legacy-base
+        run: |
+          npm ci
+          npm run build
+      - name: Compare built MCP tool and OAuth compatibility with baseline
+        run: node scripts/verify-legacy-mcp-compat.mjs legacy-base .
+      - name: Synthetic cross-version OAuth client refresh-token and owner-hash persistence
+        run: node scripts/verify-legacy-auth-continuity.mjs legacy-base .
+
+  macos-control-regressions:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Existing full suite on native macOS
+        run: npm test
+
+  windows-source-regressions:
+    # Isolated hosted Windows runner; no access to the user's installed
+    # ChatGPT To Codex, OAuth credentials, Tailscale, Chrome or research state.
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify OpenSSL available for loopback TLS regression
+        shell: pwsh
+        run: |
+          $openssl = Get-Command openssl -ErrorAction SilentlyContinue
+          if (-not $openssl) {
+            $candidate = "C:\Program Files\Git\usr\bin\openssl.exe"
+            if (-not (Test-Path $candidate)) { throw "OpenSSL not available on runner" }
+            Split-Path $candidate | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+      - name: Windows GOAL app / process bridge regressions
+        run: npx vitest run src/server/goal-app-intent.test.ts src/server/goal-process-notice-host.test.ts src/server/goal-stage-readonly.test.ts src/server/tools-catalog.test.ts src/state/isolated-state.test.ts src/auth/oauth-store-failclosed.test.ts
+      - name: Windows isolated OAuth HTTPS and MCP integration
+        run: npx vitest run src/server/mcp-remote-control.test.ts
+      # Does not read, stop, or overwrite the owner's installed MCP. All test
+      # paths are generated under the disposable Windows runner temp root.
+      - name: Synthetic Windows single-MCP cutover and rollback injections
+        run: node scripts/verify-synthetic-windows-cutover.mjs
+      - name: Synthetic Windows process-crash journal recovery and corrupt-state fences
+        run: node scripts/verify-synthetic-windows-crash-recovery.mjs
+      - name: Synthetic Windows interprocess lock ownership and exclusive file-share denial
+        run: node scripts/verify-synthetic-windows-locks.mjs
+      - name: Integrated synthetic transaction lock journal and process-crash recovery
+        run: node scripts/verify-integrated-synthetic-mcp-upgrade.mjs
+      - name: Synthetic Windows WScript executable classifier malformed-action refusal
+        shell: pwsh
+        run: |
+          $classifier = & ./scripts/Inspect-OneMcpStartupReadOnly.ps1 -ValidateWscriptClassifierOnly | ConvertFrom-Json
+          if ($classifier.code -ne 'SYNTHETIC_WSCRIPT_EXECUTABLE_CLASSIFIER_PASS' -or
+              $classifier.cases -ne 9 -or
+              $classifier.ownerHostInspected -or
+              $classifier.productionCutoverAuthorized) {
+            throw "Malformed Action.Execute was not classified safely"
+          }
+          Write-Host "SYNTHETIC_WSCRIPT_EXECUTABLE_CLASSIFIER_CI_PASS"
+      - name: Windows read-only MCP listener ownership inventory (synthetic sockets only)
+        shell: pwsh
+        run: |
+          $tcp = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+          $tcp.Start()
+          try {
+            $localPort = ([System.Net.IPEndPoint]$tcp.LocalEndpoint).Port
+            $observed = & ./scripts/Inspect-OneMcpStartupReadOnly.ps1 -Port $localPort | ConvertFrom-Json
+            if (-not $observed.listenerObserved -or
+                -not $observed.listenLoopbackOnly -or
+                -not $observed.uniqueListeningPid -or
+                -not $observed.processObserved -or
+                @($observed.processAncestryBasenames).Count -lt 1 -or
+                $observed.startupCandidateProvenLauncher -or
+                $observed.identifiedOwnerScheduledTask -or
+                $observed.taskActionArgumentsRead -or
+                $observed.matchingScheduledTaskCount -lt 0 -or
+                $observed.readyWscriptTaskCandidateCount -lt 0 -or
+                $observed.recentlySuccessfulWscriptTaskCandidateCount -lt 0 -or
+                $observed.recentlySuccessfulWscriptTaskCandidateCount -gt $observed.readyWscriptTaskCandidateCount -or
+                $observed.multipleRecentWscriptCandidatesObserved -ne ($observed.recentlySuccessfulWscriptTaskCandidateCount -ge 2) -or
+                $observed.taskEventLogCorrelationEstablished -or
+                $observed.legacyAutoRelaunchSafetyVerified -or
+                $observed.liveWscriptTaskEngineMatchCount -lt 0 -or
+                ($observed.liveWscriptTailscaleInstanceMatch -and
+                  (-not $observed.taskEngineInstanceScanCompleted -or
+                   $observed.liveWscriptTaskEngineMatchCount -ne 1)) -or
+                $observed.automaticStartupMechanismIdentified -or
+                $observed.fullProcessCommandLineRead -or
+                $observed.credentialsRead -or
+                $observed.serviceOrProcessChanged -or
+                $observed.productionCutoverAuthorized) {
+              throw "Loopback read-only startup inspection failed or overclaimed authority"
+            }
+          } finally {
+            $tcp.Stop()
+          }
+          $closed = & ./scripts/Inspect-OneMcpStartupReadOnly.ps1 -Port $localPort | ConvertFrom-Json
+          if ($closed.listenerObserved -or $closed.code -ne "SINGLE_MCP_LISTENER_NOT_OBSERVED") {
+            throw "Closed synthetic listener was incorrectly claimed active"
+          }
+          $wildcard = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, 0)
+          $wildcard.Start()
+          try {
+            $wildPort = ([System.Net.IPEndPoint]$wildcard.LocalEndpoint).Port
+            $external = & ./scripts/Inspect-OneMcpStartupReadOnly.ps1 -Port $wildPort | ConvertFrom-Json
+            if ($external.code -ne "SINGLE_MCP_NON_LOOPBACK_LISTENER_PRESENT" -or
+                $external.listenLoopbackOnly -or $external.productionCutoverAuthorized) {
+              throw "Wildcard listener was incorrectly called loopback-only"
+            }
+          } finally {
+            $wildcard.Stop()
+          }
+          Write-Host "ONE_MCP_STARTUP_READONLY_INVENTORY_CI_PASS"
+      - name: Synthetic multi-supervisor shutdown and relaunch-safety refusal gates
+        run: node scripts/verify-synthetic-supervisor-quiescence.mjs
+      - name: Synthetic Windows program snapshot and fresh-folder restore SHA gates
+        shell: pwsh
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP "synthetic-backup-owner-fixture"
+          $old = Join-Path $fixture "old-program"
+          $snapshot = Join-Path $fixture "backup-new"
+          $restored = Join-Path $fixture "restore-new"
+          $separateState = Join-Path $fixture "separate-auth-state"
+          New-Item -ItemType Directory -Path (Join-Path $old "dist") -Force | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $old "assets") -Force | Out-Null
+          New-Item -ItemType Directory -Path $separateState -Force | Out-Null
+          [IO.File]::WriteAllText((Join-Path $old "dist/cli.js"),"synthetic original cli")
+          [IO.File]::WriteAllText((Join-Path $old "package.json"),'{"version":"0.2.0"}')
+          [IO.File]::WriteAllText((Join-Path $old "assets/hidden.cfg"),"synthetic hidden asset")
+          [IO.File]::SetAttributes((Join-Path $old "assets/hidden.cfg"),[IO.FileAttributes]::Hidden)
+          [IO.File]::WriteAllText((Join-Path $separateState "not-a-token.txt"),"independent user state")
+          $statePin = (Get-FileHash (Join-Path $separateState "not-a-token.txt") -Algorithm SHA256).Hash.ToLowerInvariant()
+          $cliPin = (Get-FileHash (Join-Path $old "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant()
+          try {
+            & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Capture -ExistingProgramDir $old -SnapshotDir $snapshot -ExpectedCliSha $cliPin | Out-Null
+            throw "Snapshot captured without explicit approval flag"
+          } catch {
+            if ($_.Exception.Message -notmatch "SNAPSHOT_EXPLICIT_BACKUP_ONLY_APPROVAL_REQUIRED") { throw }
+          }
+          if (Test-Path $snapshot) { throw "Unapproved snapshot unexpectedly wrote files" }
+          try {
+            & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Capture -ExistingProgramDir $old -SnapshotDir $snapshot -ExpectedCliSha ("0" * 64) -ApproveBackupOnly | Out-Null
+            throw "Snapshot accepted a wrong externally pinned CLI hash"
+          } catch {
+            if ($_.Exception.Message -notmatch "SNAPSHOT_ORIGINAL_CLI_SHA_MISMATCH") { throw }
+          }
+          if (Test-Path $snapshot) { throw "Wrong source SHA caused filesystem write" }
+          $captured = & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Capture -ExistingProgramDir $old -SnapshotDir $snapshot -ExpectedCliSha $cliPin -ApproveBackupOnly | ConvertFrom-Json
+          if ($captured.code -ne "ONE_MCP_PROGRAM_SNAPSHOT_VERIFIED" -or
+              $captured.fileCount -ne 3 -or $captured.productionCutoverAuthorized -or
+              $captured.separateOAuthStateCopied -or $captured.restoredOrInstalled) {
+            throw "Snapshot did not preserve source-only backup boundary"
+          }
+          if ((Get-FileHash (Join-Path $separateState "not-a-token.txt") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $statePin) {
+            throw "Independent state changed during backup"
+          }
+          try {
+            & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $restored -ExpectedCliSha $cliPin -ExpectedReceiptSha ("0" * 64) -ApproveBackupOnly | Out-Null
+            throw "Snapshot restore accepted mismatched receipt hash"
+          } catch {
+            if ($_.Exception.Message -notmatch "SNAPSHOT_EXTERNALLY_PINNED_RECEIPT_SHA_MISMATCH") { throw }
+          }
+          if (Test-Path $restored) { throw "Wrong receipt SHA unexpectedly wrote files" }
+          $restore = & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $restored -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | ConvertFrom-Json
+          if ($restore.code -ne "ONE_MCP_PROGRAM_RESTORED_TO_NEW_FOLDER_ONLY" -or
+              $restore.fileCount -ne 3 -or $restore.productionCutoverAuthorized -or
+              $restore.separateOAuthStateCopied -or
+              (Get-FileHash (Join-Path $restored "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $cliPin) {
+            throw "New-folder restore result invalid"
+          }
+          try {
+            & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $restored -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | Out-Null
+            throw "Restoration overwrote a previously created target"
+          } catch {
+            if ($_.Exception.Message -notmatch "SNAPSHOT_DESTINATION_ALREADY_EXISTS") { throw }
+          }
+          # Real rollback must work even when the installed executable was
+          # replaced by a bad candidate; backup SHA+receipt are the anchors.
+          [IO.File]::WriteAllText((Join-Path $old "dist/cli.js"),"synthetic failed candidate replaced original")
+          $changedCli = (Get-FileHash (Join-Path $old "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($changedCli -ceq $cliPin) { throw "Failure fixture did not change original CLI" }
+          $alteredRestore = Join-Path $fixture "recovery-from-replaced-cli"
+          $recovered = & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $alteredRestore -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | ConvertFrom-Json
+          if ($recovered.code -ne "ONE_MCP_PROGRAM_RESTORED_TO_NEW_FOLDER_ONLY" -or
+              (Get-FileHash (Join-Path $alteredRestore "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $cliPin -or
+              (Get-FileHash (Join-Path $old "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $changedCli) {
+            throw "Restore incorrectly depended on or altered replaced original executable"
+          }
+          # After the old folder disappears entirely, verified program recovery
+          # must still prepare a separate clean directory for the later handoff.
+          Rename-Item -LiteralPath $old -NewName "retired-original" -ErrorAction Stop
+          if (Test-Path -LiteralPath $old) { throw "Synthetic original unexpectedly still exists" }
+          $missingRestore = Join-Path $fixture "recovery-after-original-folder-disappeared"
+          $missingRecovered = & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $missingRestore -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | ConvertFrom-Json
+          if ($missingRecovered.code -ne "ONE_MCP_PROGRAM_RESTORED_TO_NEW_FOLDER_ONLY" -or
+              (Get-FileHash (Join-Path $missingRestore "dist/cli.js") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $cliPin -or
+              (Test-Path -LiteralPath $old)) {
+            throw "Missing-original recovery failed or wrote into original installation path"
+          }
+          Write-Host "ONE_MCP_MISSING_OR_REPLACED_ORIGINAL_ROLLBACK_PREPARATION_PASS"
+          [IO.File]::WriteAllText((Join-Path $snapshot "program/package.json"),"tampered backup")
+          $rejectedTarget = Join-Path $fixture "restore-must-fail"
+          try {
+            & ./scripts/New-OneMcpVerifiedProgramSnapshot.ps1 -Mode Restore -ExistingProgramDir $old -SnapshotDir $snapshot -RestoreDir $rejectedTarget -ExpectedCliSha $cliPin -ExpectedReceiptSha $captured.receiptSha256 -ApproveBackupOnly | Out-Null
+            throw "Mutated backup was accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "SNAPSHOT_FILE_HASH_MISMATCH") { throw }
+          }
+          if (Test-Path $rejectedTarget) { throw "Mutated backup caused restore file writes" }
+          if ((Get-FileHash (Join-Path $separateState "not-a-token.txt") -Algorithm SHA256).Hash.ToLowerInvariant() -cne $statePin) { throw "Synthetic state changed" }
+          Write-Host "ONE_MCP_VERIFIED_SNAPSHOT_RESTORE_TESTS_PASS"
+      - name: Windows TypeScript typecheck
+        run: npm run typecheck
+      - name: Windows source build only
+        run: npm run build
+      - name: Windows GOAL app-intent independent process race (synthetic only)
+        run: node scripts/verify-goal-intent-cross-process.mjs .
+      - name: Windows existing OAuth startup fail-closed before writes or socket bind
+        run: node scripts/verify-required-existing-oauth-startup.mjs .
+      - name: Windows GOAL read-only Stage host compiled CLI startup refusal
+        run: node scripts/verify-goal-stage-cli-preflight.mjs .
+      - name: Windows read-only OAuth migration client and issuer continuity (synthetic only)
+        run: node scripts/verify-oauth-readonly-migration-clients.mjs .
+      - name: Windows private baseline-and-candidate OAuth continuity comparison (synthetic only)
+        run: node scripts/verify-oauth-private-continuity-comparison.mjs .
+      - name: Windows CLI rotation must preserve synthetic owner hash on corrupt OAuth store
+        run: node scripts/verify-corrupt-oauth-cli-rotation.mjs .
+      - name: Windows separate candidate processes serialize OAuth client writes
+        run: node scripts/verify-oauth-writer-lock.mjs .
+      - name: Windows CLI isolated-state nonproduction smoke
+        shell: pwsh
+        run: |
+          @'
+          const { spawnSync } = require("node:child_process");
+          const path = require("node:path");
+          const fs = require("node:fs");
+          const isolated = path.join(process.env.RUNNER_TEMP, "goal-cli-isolated-state");
+          const run = (...args) => spawnSync(process.execPath, ["dist/cli.js", ...args], {
+            encoding: "utf8", timeout: 10000, windowsHide: true,
+          });
+          const status = run("owner-token", "--status", "--isolated-state-dir", isolated);
+          if (status.status !== 0) throw new Error("isolated status failed: " + status.stderr);
+          const parsed = JSON.parse(status.stdout);
+          if (parsed.configured !== false) throw new Error("Inherited owner token");
+          const isolatedArgs = ["serve", "--http", "--workspace", process.cwd(),
+            "--isolated-state-dir", isolated, "--host", "127.0.0.1",
+            "--port", "7987", "--public-url", "http://127.0.0.1:7987"];
+          // The existing app's desktop-control flag defaults to ON even if
+          // CHATGPT2CODEX_CONTROL is absent: this MUST be diagnosed accurately.
+          const controlOn = run(...isolatedArgs);
+          if (controlOn.status === 0 || !controlOn.stderr.includes(
+              "ISOLATED_STAGE_DESKTOP_CONTROL_MUST_BE_DISABLED")) {
+            throw new Error("Default-on desktop control gate missed: " + controlOn.stderr);
+          }
+          if (fs.existsSync(isolated)) {
+            throw new Error("Denied desktop-control operation created state");
+          }
+          // Explicitly OFF for this test process only. A valid localhost port
+          // must pass the staging gate, then fail closed because no owner
+          // token was generated. Never launch a real service in this smoke.
+          const offEnv = { ...process.env, CHATGPT2CODEX_CONTROL: "0" };
+          const safe = spawnSync(process.execPath, ["dist/cli.js", ...isolatedArgs], {
+            encoding: "utf8", timeout: 10000, windowsHide: true, env: offEnv,
+          });
+          if (safe.status !== 1 ||
+              !safe.stderr.includes("no owner token found") ||
+              safe.stderr.includes("ISOLATED_STAGE_LOOPBACK")) {
+            throw new Error("Valid staging arguments were wrongly blocked: " + safe.stderr);
+          }
+          // With control explicitly OFF, the production port must still be
+          // rejected before any server is started.
+          const deniedArgs = [...isolatedArgs];
+          deniedArgs[deniedArgs.indexOf("7987")] = "7979";
+          deniedArgs[deniedArgs.indexOf("http://127.0.0.1:7987")] = "http://127.0.0.1:7979";
+          const blocked = spawnSync(process.execPath, ["dist/cli.js", ...deniedArgs], {
+            encoding: "utf8", timeout: 10000, windowsHide: true, env: offEnv,
+          });
+          if (blocked.status === 0 ||
+              !blocked.stderr.includes("ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED")) {
+            throw new Error("Production-port refusal missing: " + blocked.stderr);
+          }
+          // Hardened startup now refuses missing owner token BEFORE project
+          // registry/ledger initialization, even with valid staging args.
+          // Never restore a weaker expectation merely to pass legacy CI.
+          if (fs.existsSync(isolated)) {
+            throw new Error("Missing owner token unexpectedly created staging state");
+          }
+          console.log("ISOLATED_STATE_CLI_FAIL_CLOSED_PASS");
+          '@ | node -
+          if ($LASTEXITCODE -ne 0) { throw "Windows isolated CLI smoke failed" }
+      - name: Package isolated Windows staging bundle (no deployment)
+        shell: pwsh
+        run: |
+          npm prune --omit=dev --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw "Production dependency pruning failed" }
+          New-Item -ItemType Directory -Path staging-release -Force | Out-Null
+          Copy-Item -Path dist -Destination staging-release\dist -Recurse
+          Copy-Item -Path node_modules -Destination staging-release\node_modules -Recurse
+          Copy-Item -Path package.json -Destination staging-release\package.json
+          Copy-Item -Path package-lock.json -Destination staging-release\package-lock.json
+          Copy-Item -Path scripts\Prepare-GoalAppOfflineStage.ps1 -Destination staging-release\Prepare-GoalAppOfflineStage.ps1
+          Copy-Item -Path scripts\Inspect-OneMcpCutoverReadiness.ps1 -Destination staging-release\Inspect-OneMcpCutoverReadiness.ps1
+          Copy-Item -Path scripts\Inspect-OneMcpStartupReadOnly.ps1 -Destination staging-release\Inspect-OneMcpStartupReadOnly.ps1
+          Copy-Item -Path scripts\inspect-oauth-state-readonly.mjs -Destination staging-release\inspect-oauth-state-readonly.mjs
+          Copy-Item -Path scripts\compare-oauth-state-readonly.mjs -Destination staging-release\compare-oauth-state-readonly.mjs
+          Copy-Item -Path scripts\New-OneMcpVerifiedProgramSnapshot.ps1 -Destination staging-release\New-OneMcpVerifiedProgramSnapshot.ps1
+          @'
+          GOAL APP WINDOWS ISOLATED SOURCE BUNDLE
+          NO CREDENTIALS. NO OWNER TOKEN. NO INSTALLED SERVICE.
+          This is a review-only Node 22+ build generated in a disposable
+          GitHub-hosted Windows runner, NOT an update to the user PC.
+          Use --isolated-state-dir ABSOLUTE_PATH on every CLI invocation.
+          Isolated serve requires explicit non-7979 port, loopback host and
+          loopback HTTP public origin; desktop control is disabled.
+          Do not reuse the default/production owner state, port or Funnel.
+          compare-oauth-state-readonly.mjs compares TWO externally supplied,
+          separate state snapshots without writing them or printing IDs.
+          A matching snapshot is NEVER an authorization or live quiescence proof.
+          Do NOT point it at live user OAuth files without separate approval.
+          A separate, owner-approved HTTPS deployment is NOT included.
+          chatgpt2codex.goal records APP INTENT ONLY; no P3 authorization,
+          research dispatch or consumer ChatGPT rollover is granted.
+          '@ | Set-Content -Path staging-release\STAGING_README.txt -Encoding UTF8
+          # Version 0.2.0 is shared with the installed legacy app; pin actual source.
+          $sourceHead = "${{ github.event.pull_request.head.sha }}"
+          $mergeCheckout = "${{ github.sha }}"
+          if ($sourceHead -notmatch '^[0-9a-f]{40}$' -or
+              $mergeCheckout -notmatch '^[0-9a-f]{40}$') {
+            throw "Missing unambiguous review source provenance"
+          }
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          @(
+            "reviewOnly=true"
+            "sourcePrHeadSha=$sourceHead"
+            "ciCheckoutSha=$mergeCheckout"
+            "legacySharedPackageVersion=$packageVersion"
+            "nodeVersion=$(node --version)"
+            "productionDeploymentApproved=false"
+          ) | Set-Content -Path staging-release\STAGING_PROVENANCE.txt -Encoding ascii
+          $root = (Resolve-Path staging-release).Path
+          $entries = Get-ChildItem staging-release -Recurse -File | Sort-Object FullName
+          $lines = foreach ($file in $entries) {
+            $relative = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
+            $sha = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            "$sha  $relative"
+          }
+          $lines | Set-Content -Path staging-release\SHA256SUMS.txt -Encoding ascii
+          if (-not (Test-Path staging-release\dist\cli.js)) { throw "Missing CLI entrypoint" }
+      - name: Read-only full SHA256 bundle, pinned source, and nonpromotable stage fences
+        shell: pwsh
+        run: |
+          $sourceSha = "${{ github.event.pull_request.head.sha }}"
+          $original = Join-Path $env:RUNNER_TEMP "synthetic-existing-mcp"
+          New-Item -ItemType Directory -Path (Join-Path $original "dist") -Force | Out-Null
+          "synthetic-installed-legacy" | Set-Content -Path (Join-Path $original "dist/cli.js") -Encoding ascii
+          Copy-Item package.json -Destination (Join-Path $original "package.json")
+          $bundle = (Resolve-Path "staging-release").Path
+          $result = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $bundle -ExpectedSourceSha $sourceSha | ConvertFrom-Json
+          if ($result.code -ne "READONLY_SINGLE_MCP_CUTOVER_PREFLIGHT" -or
+              -not $result.candidateHasReviewProvenance -or
+              -not $result.candidateHasSelfConsistentCriticalManifest -or
+              -not $result.candidateFullManifestVerified -or
+              -not $result.candidatePinnedSourceMatches -or
+              -not $result.candidatePassesReadOnlyIntegrityGates -or
+              -not $result.fullBundleManifestVerified -or
+              $result.productionCutoverAuthorized -or
+              $result.productionChanged -or
+              $result.credentialsRead -or
+              $result.installedUserStateInspected) {
+            throw "Full staged bundle read-only gate failed or granted unsafe authority"
+          }
+          $unpinned = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $bundle | ConvertFrom-Json
+          if ($unpinned.candidatePinnedSourceMatches -or $unpinned.candidatePassesReadOnlyIntegrityGates -or
+              "PINNED_SOURCE_SHA_REQUIRED" -notin $unpinned.reasons) {
+            throw "Unpinned source was incorrectly accepted"
+          }
+          $wrongSha = "0000000000000000000000000000000000000000"
+          $wrong = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $bundle -ExpectedSourceSha $wrongSha | ConvertFrom-Json
+          if ($wrong.candidatePinnedSourceMatches -or $wrong.candidatePassesReadOnlyIntegrityGates -or
+              "CANDIDATE_SOURCE_SHA_MISMATCH" -notin $wrong.reasons) {
+            throw "Wrong pinned source was incorrectly accepted"
+          }
+          $oldStage = Join-Path $env:RUNNER_TEMP "synthetic-unproven-stage"
+          New-Item -ItemType Directory -Path (Join-Path $oldStage "dist") -Force | Out-Null
+          Copy-Item (Join-Path $bundle "dist/cli.js") (Join-Path $oldStage "dist/cli.js")
+          Copy-Item package.json -Destination (Join-Path $oldStage "package.json")
+          $legacy = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $oldStage -ExpectedSourceSha $sourceSha | ConvertFrom-Json
+          if ($legacy.candidateHasReviewProvenance -or $legacy.candidateFullManifestVerified -or
+              $legacy.candidatePassesReadOnlyIntegrityGates -or
+              "CANDIDATE_PROVENANCE_MISSING_OR_INVALID" -notin $legacy.reasons) {
+            throw "Old unproven stage incorrectly passed"
+          }
+          $tampered = Join-Path $env:RUNNER_TEMP "synthetic-tampered-bundle"
+          Copy-Item -LiteralPath $bundle -Destination $tampered -Recurse
+          ".extra hidden file" | Set-Content -Path (Join-Path $tampered ".unmanifested-hidden") -Encoding ascii
+          $extra = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $tampered -ExpectedSourceSha $sourceSha | ConvertFrom-Json
+          if ($extra.candidateFullManifestVerified -or $extra.candidatePassesReadOnlyIntegrityGates -or
+              "CANDIDATE_FULL_MANIFEST_INVALID" -notin $extra.reasons) {
+            throw "Unmanifested hidden file passed full bundle verification"
+          }
+          Remove-Item -LiteralPath (Join-Path $tampered ".unmanifested-hidden") -Force
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tampered"
+          $mutated = & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $tampered -ExpectedSourceSha $sourceSha | ConvertFrom-Json
+          if ($mutated.candidateFullManifestVerified -or $mutated.candidatePassesReadOnlyIntegrityGates -or
+              "CANDIDATE_FULL_MANIFEST_INVALID" -notin $mutated.reasons) {
+            throw "Modified noncritical file passed full bundle verification"
+          }
+          try {
+            & ./scripts/Inspect-OneMcpCutoverReadiness.ps1 -ExistingProgramDir $original -CandidateStageDir $original -ExpectedSourceSha $sourceSha | Out-Null
+            throw "Same path was not rejected"
+          } catch {
+            if ($_.Exception.Message -notmatch "READONLY_PREFLIGHT_PATH_OVERLAP") { throw }
+          }
+          Write-Host "SINGLE_MCP_FULL_MANIFEST_AND_PINNED_SOURCE_PREFLIGHT_PASS"
+      - name: Verify offline stage preparation and tamper rejection
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "goal-app-offline-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot "staging-release" -DestinationRoot $destination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or
+              $state.serviceStarted -ne $false) {
+            throw "Offline bundle stage verification did not stay inactive"
+          }
+          if (!(Test-Path (Join-Path $destination "dist/cli.js"))) { throw "Stage executable missing" }
+          foreach ($name in @("Inspect-OneMcpCutoverReadiness.ps1", "Inspect-OneMcpStartupReadOnly.ps1", "New-OneMcpVerifiedProgramSnapshot.ps1", "inspect-oauth-state-readonly.mjs")) {
+            if (!(Test-Path (Join-Path $destination $name))) {
+              throw "Required read-only inspection script missing from sealed bundle"
+            }
+          }
+          $prov = Get-Content (Join-Path $destination "STAGING_PROVENANCE.txt") -Raw
+          if ($prov -notmatch '(?m)^reviewOnly=true\r?$' -or
+              $prov -notmatch "(?m)^sourcePrHeadSha=${{ github.event.pull_request.head.sha }}\r?$" -or
+              $prov -notmatch "(?m)^ciCheckoutSha=${{ github.sha }}\r?$" -or
+              $prov -notmatch '(?m)^productionDeploymentApproved=false\r?$') {
+            throw "Staging provenance receipt missing or inconsistent"
+          }
+          $tampered = Join-Path $env:RUNNER_TEMP "goal-app-bundle-tampered"
+          Copy-Item -Path staging-release -Destination $tampered -Recurse
+          Add-Content -LiteralPath (Join-Path $tampered "STAGING_README.txt") -Value "tamper-negative-test"
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-tampered-stage")
+            throw "Tampered bundle was incorrectly accepted"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_SHA256_MISMATCH") { throw }
+          }
+          # A hidden extra was missed by the older -Recurse -File default.
+          Copy-Item -LiteralPath (Join-Path "staging-release" "STAGING_README.txt") -Destination (Join-Path $tampered "STAGING_README.txt") -Force
+          $hidden = Join-Path $tampered "unmanifested-hidden.bin"
+          [IO.File]::WriteAllText($hidden, "synthetic-hidden-not-in-manifest")
+          [IO.File]::SetAttributes($hidden, [IO.FileAttributes]::Hidden)
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-hidden-stage") | Out-Null
+            throw "A hidden unmanifested file was incorrectly staged"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_UNLISTED_FILE") { throw }
+          }
+          Remove-Item -LiteralPath $hidden -Force
+          # A directory junction points outside the candidate file tree and
+          # must be rejected rather than silently followed or ignored.
+          $junction = Join-Path $tampered "test-unmanifested-junction"
+          New-Item -ItemType Junction -Path $junction -Target $destination -ErrorAction Stop | Out-Null
+          try {
+            & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $tampered -DestinationRoot (Join-Path $env:RUNNER_TEMP "denied-junction-stage") | Out-Null
+            throw "A junction escaped staged bundle verification"
+          } catch {
+            if ($_.Exception.Message -notmatch "STAGE_BUNDLE_SYMLINK_FORBIDDEN|STAGE_REPARSE_PATH_REFUSED") { throw }
+          }
+          Remove-Item -LiteralPath $junction -Force
+          Write-Host "OFFLINE_STAGE_HIDDEN_EXTRA_AND_JUNCTION_DENIAL_PASS"
+      - name: Upload isolated Windows bundle (not installed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-release/
+          retention-days: 7
+          # SHA256SUMS lists dot-files/dirs (e.g. node_modules/.bin).
+          # upload-artifact@v4.4+ drops these by default, causing an
+          # unrecoverable missing-file error after the owner extracts the ZIP.
+          # Only staged source assets are in this upload; no credentials.
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Download the published archive for round-trip validation
+        uses: actions/download-artifact@v4
+        with:
+          name: goal-app-windows-source-${{ github.sha }}
+          path: staging-artifact-download
+      - name: Verify downloaded artifact hashes and offline stage replay
+        shell: pwsh
+        run: |
+          $downloaded = (Resolve-Path staging-artifact-download).Path
+          $manifest = Join-Path $downloaded "SHA256SUMS.txt"
+          if (!(Test-Path $manifest)) { throw "Downloaded SHA256 manifest missing" }
+          $expectedCount = @(Get-Content $manifest).Count
+          $artifactCount = @(Get-ChildItem -LiteralPath $downloaded -Recurse -File -Force).Count
+          if ($artifactCount -ne ($expectedCount + 1)) {
+            throw "Artifact roundtrip file count mismatch: manifest=$expectedCount archive=$artifactCount"
+          }
+          $roundtripDestination = Join-Path $env:RUNNER_TEMP "goal-app-downloaded-artifact-stage"
+          $receipt = & ./scripts/Prepare-GoalAppOfflineStage.ps1 -BundleRoot $downloaded -DestinationRoot $roundtripDestination
+          $state = $receipt | ConvertFrom-Json
+          if ($state.code -ne "STAGE_OFFLINE_PREPARED_ONLY" -or
+              $state.checksumVerified -ne $true -or $state.serviceStarted -ne $false) {
+            throw "Downloaded archive failed its own SHA256 offline stage replay"
+          }
+          Write-Host "DOWNLOADED_ARTIFACT_SHA256_VERIFIED files=$expectedCount"

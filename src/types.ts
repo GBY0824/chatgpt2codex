@@ -107,6 +107,10 @@ export interface ToolContext {
    * desktop-control tools are exposed to ChatGPT
    * (src/control/policy.ts isControlChatGptExposed). */
   remote?: boolean;
+  /** Optional owner-host callback for a post-commit OAuth-scoped GOAL notice.
+   * A notice is NOT authority to execute P3 work or provider CHAT attestation.
+   * Unconfigured by default on original HTTP/stdio runtime. */
+  goalAppNoticeHost?: import("./server/goal-app-intent.js").GoalAppNoticeHost;
 }
 
 // ---------------------------------------------------------------------------

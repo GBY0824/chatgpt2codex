@@ -23,6 +23,9 @@ import { Store } from "./state/store.js";
 import { Ledger } from "./state/ledger.js";
 import { createServer } from "./server/mcp-server.js";
 import { createHttpServer, defaultHttpServerConfig } from "./server/http.js";
+import { createGoalStageReadOnlyHost } from "./server/goal-stage-readonly.js";
+import { createGoalProcessNoticeHost } from "./server/goal-process-notice-host.js";
+import { resolveIsolatedStateDir } from "./state/isolated-state.js";
 import { generateOwnerToken, hasOwnerToken, storeOwnerToken } from "./auth/owner-token.js";
 import { JsonOAuthStore } from "./auth/oauth-store.js";
 import { checkIntakeAvailability } from "./assets/image-intake.js";
@@ -79,9 +82,8 @@ function defaultConfig(workspaceRoot: string, stateDir: string): Config {
   };
 }
 
-async function buildToolContext(workspace: string): Promise<ToolContext> {
+async function buildToolContext(workspace: string, stateDir = defaultStateDir()): Promise<ToolContext> {
   const workspaceRoot = path.resolve(workspace);
-  const stateDir = defaultStateDir();
 
   const store = new Store(stateDir);
   const ledger = new Ledger(stateDir);
@@ -153,8 +155,12 @@ async function applyStartupProjectSelection(ctx: ToolContext, flags: Record<stri
 }
 
 async function cmdServeStdio(flags: Record<string, string | boolean>): Promise<void> {
+  if (flags["isolated-state-dir"] !== undefined && isControlEnabled()) {
+    throw new Error("ISOLATED_STAGE_DESKTOP_CONTROL_FORBIDDEN");
+  }
   const workspace = typeof flags.workspace === "string" ? flags.workspace : process.cwd();
-  const ctx = await buildToolContext(workspace);
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
+  const ctx = await buildToolContext(workspace, stateDir);
   await applyStartupProjectSelection(ctx, flags);
   if (isControlEnabled()) startExecutor(ctx);
   const server = await createServer(ctx);
@@ -172,15 +178,104 @@ async function cmdServeStdio(flags: Record<string, string | boolean>): Promise<v
  */
 async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<void> {
   const workspace = typeof flags.workspace === "string" ? flags.workspace : process.cwd();
-  const ctx = await buildToolContext(workspace);
-
-  if (!(await hasOwnerToken(ctx.stateDir))) {
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
+  // Side-by-side review must never reuse the installed service's default port,
+  // inherit desktop-control authority or accidentally expose the stage.
+  if (flags["isolated-state-dir"] !== undefined) {
+    const portValue = typeof flags.port === "string" ? Number(flags.port) : 7979;
+    const hostValue = typeof flags.host === "string" ? flags.host : "127.0.0.1";
+    const publicValue = typeof flags["public-url"] === "string"
+      ? flags["public-url"] : `http://${hostValue}:${portValue}`;
+    const publicOrigin = new URL(publicValue);
+    const loopbackHost = hostValue === "127.0.0.1" || hostValue === "localhost" || hostValue === "::1";
+    const publicLoopback = publicOrigin.hostname === "127.0.0.1"
+      || publicOrigin.hostname === "localhost" || publicOrigin.hostname === "[::1]";
+    if (isControlEnabled()) {
+      throw new Error(
+        "ISOLATED_STAGE_DESKTOP_CONTROL_MUST_BE_DISABLED: " +
+        "set CHATGPT2CODEX_CONTROL=0 for the staging process only",
+      );
+    }
+    if (portValue === 7979 || !Number.isSafeInteger(portValue)
+        || portValue < 1 || portValue > 65535 || !loopbackHost
+        || publicOrigin.protocol !== "http:" || !publicLoopback
+        || Number(publicOrigin.port || (publicOrigin.protocol === "http:" ? "80" : "443")) !== portValue) {
+      throw new Error("ISOLATED_STAGE_LOOPBACK_NONPRODUCTION_PORT_REQUIRED");
+    }
+  }
+  // An upgraded owner installation MUST prove the prior OAuth file still
+  // exists and parses before any project/session/ledger writes or socket bind.
+  // Never enable this for initial OAuth enrollment or isolated fresh stages.
+  if (flags["require-existing-oauth-state"] !== undefined &&
+      flags["require-existing-oauth-state"] !== true) {
+    throw new Error("REQUIRE_EXISTING_OAUTH_FLAG_MUST_BE_BOOLEAN");
+  }
+  const requireExistingOAuthState = flags["require-existing-oauth-state"] === true;
+  if (requireExistingOAuthState) {
+    await new JsonOAuthStore(stateDir, true).assertReadable();
+  }
+  // Reject invalid Stage diagnostic opt-in BEFORE any project/state writes.
+  if (flags["goal-readonly-stage-check"] !== undefined &&
+      flags["goal-readonly-stage-check"] !== true) {
+    throw new Error("GOAL_READONLY_STAGE_FLAG_MUST_BE_BOOLEAN");
+  }
+  if (flags["goal-readonly-stage-check"] === true &&
+      (typeof flags.workspace !== "string" || !path.isAbsolute(flags.workspace))) {
+    throw new Error("GOAL_READONLY_STAGE_ABSOLUTE_WORKSPACE_REQUIRED");
+  }
+  // An owner-pinned process bridge is the ONLY optional route from the
+  // original MCP to an external GoalEventEngine host. It is never enabled
+  // by OAuth or a model-supplied tool parameter alone. Production requires
+  // pre-existing OAuth state; isolated disposable review remains separate.
+  const processHostKeys = [
+    "goal-process-executable", "goal-process-script", "goal-process-script-sha256",
+    "goal-process-key-file", "goal-engine-state-file",
+  ] as const;
+  const nativeGoalReady = flags["goal-process-native-ready"] === true;
+  if ((flags["goal-process-native-ready"] !== undefined && !nativeGoalReady)
+      || (nativeGoalReady && typeof flags["goal-process-executable-sha256"] !== "string")
+      || (!nativeGoalReady && flags["goal-process-executable-sha256"] !== undefined)) {
+    throw new Error("GOAL_PROCESS_NATIVE_EXECUTABLE_PIN_REQUIRED");
+  }
+  const processHostRequested = nativeGoalReady || processHostKeys.some((key) => flags[key] !== undefined);
+  if (processHostRequested) {
+    if (flags["goal-readonly-stage-check"] !== undefined
+        || (flags["isolated-state-dir"] === undefined && !requireExistingOAuthState)
+        || typeof flags.workspace !== "string" || !path.isAbsolute(flags.workspace)
+        || processHostKeys.some((key) => typeof flags[key] !== "string")) {
+      throw new Error("GOAL_PROCESS_HOST_EXPLICIT_OWNER_PRECONDITIONS_REQUIRED");
+    }
+  }
+  // Do not mutate the registry/ledger merely because a server without its
+  // owner token was started. A required pre-existing OAuth document is checked
+  // FIRST, then the existing owner token, only then the project state.
+  if (!(await hasOwnerToken(stateDir))) {
     console.error(
       "chatgpt2codex serve --http: no owner token found. Run `chatgpt2codex init` first to generate one.",
     );
     process.exitCode = 1;
     return;
   }
+  // Check the complete owner-selected process host/key pin BEFORE any
+  // session registry or audit writes; never activate a partial host.
+  const processHost = processHostRequested
+    ? await createGoalProcessNoticeHost({
+      projectRoot: workspace, stateDir,
+      executable: flags["goal-process-executable"] as string,
+      ...(nativeGoalReady ? {
+        nativeReady: true, executableSha256: flags["goal-process-executable-sha256"] as string,
+      } : {}),
+      script: flags["goal-process-script"] as string,
+      scriptSha256: flags["goal-process-script-sha256"] as string,
+      bridgeKeyFile: flags["goal-process-key-file"] as string,
+      engineStateFile: flags["goal-engine-state-file"] as string,
+    }) : undefined;
+  const ctx = await buildToolContext(workspace, stateDir);
+  // Read-only Stage and process host are mutually exclusive.
+  if (flags["goal-readonly-stage-check"] === true) {
+    ctx.goalAppNoticeHost = createGoalStageReadOnlyHost(workspace);
+  }
+  if (processHost) ctx.goalAppNoticeHost = processHost;
 
   const port = typeof flags.port === "string" ? Number.parseInt(flags.port, 10) : 7979;
   const host = typeof flags.host === "string" ? flags.host : "127.0.0.1";
@@ -212,6 +307,7 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
     host,
     port,
     publicUrl,
+    requireExistingOAuthState,
     idleShutdownMs,
     onIdleTimeout: () => {
       console.error("chatgpt2codex serve --http: idle timeout reached; stopping.");
@@ -243,6 +339,17 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
 }
 
 async function cmdServe(flags: Record<string, string | boolean>): Promise<void> {
+  if (!flags.http && flags["require-existing-oauth-state"] !== undefined) {
+    throw new Error("REQUIRE_EXISTING_OAUTH_REQUIRES_HTTP");
+  }
+  if (!flags.http && flags["goal-readonly-stage-check"] !== undefined) {
+    throw new Error("GOAL_READONLY_STAGE_REQUIRES_HTTP");
+  }
+  if (!flags.http && [
+    "goal-process-executable", "goal-process-script", "goal-process-script-sha256",
+  ].some((key) => flags[key] !== undefined)) {
+    throw new Error("GOAL_PROCESS_HOST_REQUIRES_HTTP");
+  }
   if (flags.http) {
     await cmdServeHttp(flags);
     return;
@@ -253,7 +360,12 @@ async function cmdServe(flags: Record<string, string | boolean>): Promise<void> 
 async function cmdInit(flags: Record<string, string | boolean>): Promise<void> {
   const workspace = typeof flags.workspace === "string" ? flags.workspace : process.cwd();
   const workspaceRoot = path.resolve(workspace);
-  const stateDir = defaultStateDir();
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
+
+  // Refuse init before ANY project/session/ledger write when the existing
+  // OAuth file is corrupt or unreadable. In particular a token rotation
+  // must never happen after a partial re-initialization.
+  await new JsonOAuthStore(stateDir).assertWritable();
 
   const store = new Store(stateDir);
   const ledger = new Ledger(stateDir);
@@ -303,7 +415,7 @@ async function readStdin(): Promise<string> {
 
 async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<void> {
   const workspace = typeof flags.workspace === "string" ? flags.workspace : process.cwd();
-  const stateDir = defaultStateDir();
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
 
   if (flags.status) {
     console.log(JSON.stringify({ configured: await hasOwnerToken(stateDir), stateDir }));
@@ -312,6 +424,7 @@ async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<v
 
   if (flags["set-stdin"]) {
     const token = (await readStdin()).trim();
+    await new JsonOAuthStore(stateDir).assertWritable();
     await storeOwnerToken(stateDir, token);
     await new JsonOAuthStore(stateDir).clearAll();
     console.log(JSON.stringify({ configured: true, rotated: true, stateDir }));
@@ -319,6 +432,7 @@ async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<v
   }
 
   if (flags.generate || flags.rotate) {
+    await new JsonOAuthStore(stateDir).assertWritable();
     const ownerToken = generateOwnerToken();
     await storeOwnerToken(stateDir, ownerToken);
     await new JsonOAuthStore(stateDir).clearAll();
@@ -344,7 +458,10 @@ async function cmdOwnerToken(flags: Record<string, string | boolean>): Promise<v
  * HTTP route that calls approveAction, setKill, or setAuto.
  */
 async function cmdControl(positional: string[], flags: Record<string, string | boolean> = {}): Promise<void> {
-  const stateDir = defaultStateDir();
+  if (flags["isolated-state-dir"] !== undefined) {
+    throw new Error("ISOLATED_STAGE_DESKTOP_CONTROL_FORBIDDEN");
+  }
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
   const [sub, actionId] = positional;
   switch (sub) {
     case "list": {
@@ -523,7 +640,8 @@ async function checkCommand(cmd: string, args: string[]): Promise<string | undef
   }
 }
 
-async function cmdDoctor(): Promise<void> {
+async function cmdDoctor(flags: Record<string, string | boolean>): Promise<void> {
+  const stateDir = await resolveIsolatedStateDir(flags["isolated-state-dir"], defaultStateDir());
   const nodeVersion = process.version;
   const rgVersion = await checkCommand("rg", ["--version"]);
   const gitVersion = await checkCommand("git", ["--version"]);
@@ -533,7 +651,7 @@ async function cmdDoctor(): Promise<void> {
   try {
     // Import lazily so a broken registration path doesn't crash doctor.
     const { createServer } = await import("./server/mcp-server.js");
-    const ctx = await buildToolContext(workspacePath);
+    const ctx = await buildToolContext(workspacePath, stateDir);
     const server = await createServer(ctx);
     const serverAny = server as unknown as {
       _registeredTools?: Record<string, unknown>;
@@ -544,7 +662,6 @@ async function cmdDoctor(): Promise<void> {
     toolCount = `error: ${(err as Error).message}`;
   }
 
-  const stateDir = defaultStateDir();
   const ownerTokenReady = await hasOwnerToken(stateDir);
   const intake = await checkIntakeAvailability();
 
@@ -578,7 +695,7 @@ async function main(): Promise<void> {
       await cmdInit(flags);
       break;
     case "doctor":
-      await cmdDoctor();
+      await cmdDoctor(flags);
       break;
     case "owner-token":
       await cmdOwnerToken(flags);
@@ -588,7 +705,7 @@ async function main(): Promise<void> {
       break;
     default:
       console.error(
-        "usage: chatgpt2codex <serve|init|doctor|owner-token|control> [--workspace <path>] [--active-project-root <path>] [--stdio | --http [--port 7979] [--public-url <origin>]]",
+        "usage: chatgpt2codex <serve|init|doctor|owner-token|control> [--workspace <path>] [--isolated-state-dir <absolute-separate-path>] [--active-project-root <path>] [--stdio | --http [--port 7979] [--public-url <origin>] [--require-existing-oauth-state]]",
       );
       process.exitCode = 1;
   }

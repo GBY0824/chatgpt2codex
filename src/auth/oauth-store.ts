@@ -1,5 +1,5 @@
 import { randomUUID, createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile, chmod } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile, chmod, open, unlink, lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
@@ -102,6 +102,52 @@ function redirectHostAllowed(redirectUri: string, allowedHosts: string[]): boole
 }
 
 /**
+ * On Windows, concurrent exclusive file opens may surface EACCES/EPERM
+ * instead of EEXIST while another candidate writer owns the lock.
+ * Retry ONLY when that specific lock pathname is independently observed
+ * as a regular file. Unknown errno, missing paths and directories are
+ * actual I/O failures, never permission to assume an OAuth writer claim.
+ */
+export function isVerifiedOAuthWriterContention(
+  errno: string | undefined, platform: NodeJS.Platform, lockFileObserved: boolean,
+): boolean {
+  return errno === "EEXIST" ||
+    (platform === "win32" && lockFileObserved && (errno === "EACCES" || errno === "EPERM"));
+}
+
+/**
+ * Windows may temporarily reject an exclusive file creation with EPERM or
+ * EACCES even when the path is not yet observable. Retrying the SAME atomic
+ * wx open is safe; it never creates a writer claim without OS exclusivity.
+ * An unverified path must NEVER be classified as another writer's lock.
+ * Repeated unverified denial ultimately remains an I/O failure, not success.
+ */
+export function isRetryableWindowsOAuthOpenDenial(
+  errno: string | undefined, platform: NodeJS.Platform,
+): boolean {
+  return platform === "win32" && (errno === "EPERM" || errno === "EACCES");
+}
+
+/**
+ * Deterministic decision for a failed attempt to create the exclusive writer
+ * lock. The caller is NEVER permitted to write oauth.json unless the real
+ * operating-system wx open has returned an owned handle.
+ *
+ * "retry" merely repeats that exclusive open, not the OAuth transaction.
+ * An unobserved Windows EPERM/EACCES stays an I/O failure at the deadline;
+ * only known busy/stale lock conditions receive a busy classification.
+ */
+export function decideOAuthExclusiveOpenFailure(
+  errno: string | undefined, platform: NodeJS.Platform,
+  regularLockObserved: boolean, deadlineExpired: boolean,
+): "retry" | "busy" | "io-failed" {
+  const busy = isVerifiedOAuthWriterContention(errno, platform, regularLockObserved);
+  if (!busy && !isRetryableWindowsOAuthOpenDenial(errno, platform)) return "io-failed";
+  if (!deadlineExpired) return "retry";
+  return busy ? "busy" : "io-failed";
+}
+
+/**
  * JSON-file backed OAuth store: registered clients + access/refresh tokens.
  * All mutating operations are serialized through an in-process mutex so
  * concurrent tool/HTTP handlers never interleave a read-modify-write cycle
@@ -112,17 +158,98 @@ export class JsonOAuthStore {
   private readonly filePath: string;
   private queue: Promise<unknown> = Promise.resolve();
   private cache: OAuthFile | undefined;
+  private persistedOAuthPreviouslyObserved = false;
+  private readonly writerLockPath: string;
 
-  constructor(stateDir: string) {
+
+  constructor(stateDir: string, private readonly requireExistingState = false) {
     this.stateDir = stateDir;
     this.filePath = join(stateDir, OAUTH_FILE);
+    this.writerLockPath = join(stateDir, "oauth-write.lock");
+
   }
 
-  /** Serialize all read-modify-write operations on the backing file. */
-  private locked<T>(fn: () => Promise<T>): Promise<T> {
-    const run = this.queue.then(fn, fn);
-    // Swallow rejections in the chain itself so one failed op doesn't wedge
-    // the queue for subsequent callers; callers still see their own errors.
+  /**
+   * An exclusive filesystem claim guards a whole read/modify/persist
+   * transaction across independently running candidate processes.
+   * The old production v0.2.0 DOES NOT honor this marker, so it must
+   * still be stopped before sharing a state directory on live cutover.
+   *
+   * A process crash deliberately leaves a stale marker. Never guess that
+   * its PID is safe to reclaim: PID reuse and in-progress writes make
+   * automatic removal unsafe. Recovery requires owner intervention.
+   */
+  private async withWriterClaim<T>(fn: () => Promise<T>): Promise<T> {
+    await this.ensureDir();
+    const deadline = Date.now() + 5000;
+    let handle: Awaited<ReturnType<typeof open>>;
+    while (true) {
+      try {
+        handle = await open(this.writerLockPath, "wx", FILE_MODE);
+        break;
+      } catch (error) {
+        const errno = (error as NodeJS.ErrnoException).code;
+        let fileObserved = false;
+        if (process.platform === "win32" && (errno === "EACCES" || errno === "EPERM")) {
+          try {
+            fileObserved = (await lstat(this.writerLockPath)).isFile();
+          } catch {
+            // No verified existing regular lock: preserve the I/O failure.
+          }
+        }
+        const decision = decideOAuthExclusiveOpenFailure(
+          errno, process.platform, fileObserved, Date.now() >= deadline,
+        );
+        if (decision === "io-failed") {
+          throw new Error("OAUTH_WRITE_LOCK_IO_FAILED", { cause: error });
+        }
+        if (decision === "busy") {
+          throw new Error("OAUTH_WRITE_LOCK_BUSY_OR_STALE");
+        }
+        // Re-attempt OS-enforced exclusive wx creation; no read/modify/write
+        // transaction can run before that atomic acquisition succeeds.
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    const claim = JSON.stringify({
+      version: 1, pid: process.pid, createdAt: Date.now(), nonce: randomUUID(),
+    });
+    // A filename alone is NOT proof of ownership: another process/operator
+    // could replace this path while work is running. Verify original identity
+    // before unlinking, and leave any unexpected claim untouched.
+    const claimIdentity = await handle.stat();
+    try {
+      await handle.writeFile(claim);
+      await handle.sync();
+      return await fn();
+    } finally {
+      await handle.close();
+      let stillOwned = false;
+      try {
+        const [saved, pathIdentity] = await Promise.all([
+          readFile(this.writerLockPath, "utf8"),
+          lstat(this.writerLockPath),
+        ]);
+        stillOwned = saved === claim && pathIdentity.isFile() &&
+          pathIdentity.dev === claimIdentity.dev &&
+          pathIdentity.ino === claimIdentity.ino;
+      } catch {
+        // Missing/replaced/unknown lock: never delete a different claim.
+      }
+      if (!stillOwned) throw new Error("OAUTH_WRITE_LOCK_OWNERSHIP_LOST");
+      // This is a best-effort ownership fence, not an atomic OS unlink-by-handle.
+      // External arbitrary file replacement between check and unlink remains
+      // a race; owner-authorized filesystem isolation is required for cutover.
+      await unlink(this.writerLockPath);
+    }
+  }
+
+  /** Serialize operations within this store instance, plus mutations
+   * across candidate processes before reading and persisting OAuth JSON. */
+  private locked<T>(fn: () => Promise<T>, write = false): Promise<T> {
+    const action = () => write ? this.withWriterClaim(fn) : fn();
+    const run = this.queue.then(action, action);
+    // Do not wedge future requests after an explicit fail-closed rejection.
     this.queue = run.catch(() => undefined);
     return run;
   }
@@ -137,13 +264,61 @@ export class JsonOAuthStore {
   }
 
   private async load(): Promise<OAuthFile> {
+    // Only an ABSENT file is an uninitialized store. A corrupt, inaccessible,
+    // unsupported or unreadable existing file must never become an empty
+    // document: the next OAuth write would otherwise erase registered clients
+    // and token records silently.
+    // Split absence at FIRST lstat from subsequent read failures. A path
+    // removed after stat must not be treated as a new empty store. Once this
+    // instance has observed a valid persistent document, losing it must
+    // never silently erase previously registered clients on the next write.
+    let entry: Awaited<ReturnType<typeof lstat>>;
     try {
-      const raw = await readFile(this.filePath, "utf8");
-      const parsed = OAuthFileSchema.safeParse(JSON.parse(raw));
-      this.cache = parsed.success ? parsed.data : emptyFile();
-    } catch {
-      this.cache = emptyFile();
+      entry = await lstat(this.filePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT" &&
+          !this.persistedOAuthPreviouslyObserved && !this.requireExistingState) {
+        this.cache = emptyFile();
+        return this.cache;
+      }
+      this.cache = undefined;
+      throw new Error("OAUTH_STORE_READ_FAILED", { cause: error });
     }
+    if (!entry.isFile()) {
+      this.cache = undefined;
+      throw new Error("OAUTH_STORE_READ_FAILED");
+    }
+    let raw: string;
+    try {
+      raw = await readFile(this.filePath, "utf8");
+    } catch (error) {
+      this.cache = undefined;
+      throw new Error("OAUTH_STORE_READ_FAILED", { cause: error });
+    }
+
+    let document: unknown;
+    try {
+      document = JSON.parse(raw);
+    } catch {
+      this.cache = undefined;
+      throw new Error("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+    }
+    const parsed = OAuthFileSchema.safeParse(document);
+    if (!parsed.success || parsed.data.version !== 1) {
+      this.cache = undefined;
+      throw new Error("OAUTH_STORE_CORRUPT_REFUSE_WRITE");
+    }
+    // For an OWNER-APPROVED migration preserving existing ChatGPT OAuth
+    // registrations, an otherwise valid but *empty* document is not proof
+    // of continuity. Reject it before any candidate OAuth operation.
+    // This minimum is NOT a substitute for separately pinned client ID
+    // and issuer identity from the owner's private verified snapshot.
+    if (this.requireExistingState && parsed.data.clients.length === 0) {
+      this.cache = undefined;
+      throw new Error("OAUTH_REQUIRED_CLIENT_REGISTRATIONS_MISSING");
+    }
+    this.persistedOAuthPreviouslyObserved = true;
+    this.cache = parsed.data;
     return this.cache;
   }
 
@@ -158,6 +333,7 @@ export class JsonOAuthStore {
     } catch {
       // Non-fatal.
     }
+    this.persistedOAuthPreviouslyObserved = true;
     this.cache = doc;
   }
 
@@ -199,7 +375,7 @@ export class JsonOAuthStore {
       });
       await this.persist(doc);
       return registered;
-    });
+    }, true);
   }
 
   async getAccessToken(tokenHash: string): Promise<PersistedAccessTokenRecord | undefined> {
@@ -251,7 +427,7 @@ export class JsonOAuthStore {
 
       await this.persist(doc);
       return true;
-    });
+    }, true);
   }
 
   async deleteAccessToken(tokenHash: string): Promise<void> {
@@ -260,7 +436,7 @@ export class JsonOAuthStore {
       const before = doc.accessTokens.length;
       doc.accessTokens = doc.accessTokens.filter((t) => t.tokenHash !== tokenHash);
       if (doc.accessTokens.length !== before) await this.persist(doc);
-    });
+    }, true);
   }
 
   async deleteRefreshToken(tokenHash: string): Promise<void> {
@@ -269,13 +445,36 @@ export class JsonOAuthStore {
       const before = doc.refreshTokens.length;
       doc.refreshTokens = doc.refreshTokens.filter((t) => t.tokenHash !== tokenHash);
       if (doc.refreshTokens.length !== before) await this.persist(doc);
+    }, true);
+  }
+
+  /** Guard sensitive lifecycle actions before changing the separate owner
+   * token file. Never treats an unreadable or corrupt existing oauth.json
+   * as empty and never mutates the OAuth document. */
+  async assertReadable(): Promise<void> {
+    await this.locked(async () => {
+      await this.load();
     });
+  }
+
+  /**
+   * Used before CLI owner-token changes: fail early if a previous writer
+   * left a stale lock. This is a preflight, not a transactional guarantee
+   * across the later owner-token and OAuth file writes.
+   */
+  async assertWritable(): Promise<void> {
+    await this.locked(async () => {
+      await this.load();
+    }, true);
   }
 
   async clearAll(): Promise<void> {
     await this.locked(async () => {
+      // Explicit token rotation still must not overwrite a damaged OAuth
+      // store. Recover the damaged file privately before any reset.
+      await this.load();
       await this.persist(emptyFile());
-    });
+    }, true);
   }
 
   close(): void {
