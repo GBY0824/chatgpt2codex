@@ -70,6 +70,31 @@ describe("fixed GOAL work transport with disposable requests and process stubs",
     expect(calls[0]).toContain("--prepare-owner-request");
   });
 
+  it("prepares an exact bounded sequence without signing or dispatching", async () => {
+    const steps = ["first", "next"].map(job_id => ({ job_id, outputs: [`docs/${job_id}.md`],
+      launch_args: ["fixture", job_id], signing_bytes_base64: "Zml4dHVyZQ==" }));
+    const response = { code: "GOAL_OWNER_WORK_SEQUENCE_SIGNATURE_REQUIRED", maximum_steps: 2,
+      expiry_extended: false, steps };
+    const host = hostFor(state, async body => { calls.push(body); return JSON.stringify(response); });
+    expect(await goalWorkCommand({ input: { operation: "prepare" }, auth, remote: true, host }))
+      .toMatchObject({ ...response, signatureIssued: false, effectsIssued: 0 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).not.toContain("--dispatch");
+  });
+
+  it("rejects malformed sequence counts, duplicate jobs, extended expiry and extra authority", async () => {
+    const steps = ["first", "next"].map(job_id => ({ job_id, outputs: [`docs/${job_id}.md`],
+      launch_args: ["fixture", job_id], signing_bytes_base64: "Zml4dHVyZQ==" }));
+    const valid = { code: "GOAL_OWNER_WORK_SEQUENCE_SIGNATURE_REQUIRED", maximum_steps: 2,
+      expiry_extended: false, steps };
+    for (const response of [{ ...valid, maximum_steps: 3 }, { ...valid, steps: [steps[0], steps[0]] },
+      { ...valid, expiry_extended: true }, { ...valid, authority: true }]) {
+      const host = hostFor(state, async () => JSON.stringify(response));
+      await expect(goalWorkCommand({ input: { operation: "prepare" }, auth, remote: true, host }))
+        .rejects.toMatchObject({ code: "GOAL_WORK_ACK_INVALID_PRESERVE_NO_REPLAY" });
+    }
+  });
+
   it("admits a digest once and returns exact supervisor identity without execution credit", async () => {
     // Given one independently provisioned fixture wire and a process stub.
     const host = hostFor(state, async body => { calls.push(body); return started(digest); });

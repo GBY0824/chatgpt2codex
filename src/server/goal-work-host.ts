@@ -9,12 +9,20 @@ import { goalWorkPrelude, goalWorkFinally, goalWorkFunctions, psLiteral, runGoal
 
 const code = z.string().regex(/^[A-Z0-9_]{1,128}$/);
 const ack = z.object({ code }).strict();
-const prepared = z.object({
+const preparedSingle = z.object({
   code: z.literal("GOAL_OWNER_WORK_SIGNATURE_REQUIRED"), opr: z.string().max(128),
   job_id: z.string().max(128), outputs: z.array(z.string().max(4096)).max(128),
   launch_args: z.array(z.string().max(4096)).max(128),
   signing_bytes_base64: z.string().min(1).max(49152).regex(/^[A-Za-z0-9+/]+={0,2}$/),
 }).strict();
+const preparedStep = preparedSingle.omit({ code: true, opr: true });
+const preparedSequence = z.object({
+  code: z.literal("GOAL_OWNER_WORK_SEQUENCE_SIGNATURE_REQUIRED"),
+  maximum_steps: z.number().int().min(2).max(8), expiry_extended: z.literal(false),
+  steps: z.array(preparedStep).min(2).max(8),
+}).strict().refine(value => value.maximum_steps === value.steps.length
+  && new Set(value.steps.map(step => step.job_id)).size === value.steps.length);
+const prepared = z.union([preparedSingle, preparedSequence]);
 const policy = z.object({ code: z.literal("GOAL_READY_POLICY_VERIFIED"), signer_fingerprint: z.string().regex(/^SHA256:[A-Za-z0-9+/]{43}$/) }).strict();
 const supervisor = z.object({
   schema: z.literal(1), phase: z.literal("EXACT_SUPERVISOR_STARTED_NO_EXECUTION_PROOF"),
