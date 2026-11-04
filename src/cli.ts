@@ -25,6 +25,8 @@ import { createServer } from "./server/mcp-server.js";
 import { createHttpServer, defaultHttpServerConfig } from "./server/http.js";
 import { createGoalStageReadOnlyHost } from "./server/goal-stage-readonly.js";
 import { createGoalProcessNoticeHost } from "./server/goal-process-notice-host.js";
+import { createGoalWorkHost } from "./server/goal-work-host.js";
+import { readGoalWorkConfig, GOAL_WORK_PATHS } from "./server/goal-work-pins.js";
 import { resolveIsolatedStateDir } from "./state/isolated-state.js";
 import { generateOwnerToken, hasOwnerToken, storeOwnerToken } from "./auth/owner-token.js";
 import { JsonOAuthStore } from "./auth/oauth-store.js";
@@ -238,6 +240,12 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
     throw new Error("GOAL_PROCESS_NATIVE_EXECUTABLE_PIN_REQUIRED");
   }
   const processHostRequested = nativeGoalReady || processHostKeys.some((key) => flags[key] !== undefined);
+  const workConfigFile = flags["goal-work-config"];
+  if (workConfigFile !== undefined && (typeof workConfigFile !== "string"
+      || !path.isAbsolute(workConfigFile) || !nativeGoalReady || !requireExistingOAuthState
+      || flags["goal-process-executable"] !== GOAL_WORK_PATHS.native)) {
+    throw new Error("GOAL_WORK_EXPLICIT_NATIVE_OWNER_CONFIGURATION_REQUIRED");
+  }
   if (processHostRequested) {
     if (flags["goal-readonly-stage-check"] !== undefined
         || (flags["isolated-state-dir"] === undefined && !requireExistingOAuthState)
@@ -270,12 +278,18 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
       bridgeKeyFile: flags["goal-process-key-file"] as string,
       engineStateFile: flags["goal-engine-state-file"] as string,
     }) : undefined;
+  const workConfig = typeof workConfigFile === "string" ? await readGoalWorkConfig(workConfigFile) : undefined;
+  if (workConfig && workConfig.nativeSha256 !== flags["goal-process-executable-sha256"]) {
+    throw new Error("GOAL_WORK_AND_NOTICE_NATIVE_PIN_MUST_MATCH");
+  }
+  const workHost = workConfig ? await createGoalWorkHost(workConfig, stateDir) : undefined;
   const ctx = await buildToolContext(workspace, stateDir);
   // Read-only Stage and process host are mutually exclusive.
   if (flags["goal-readonly-stage-check"] === true) {
     ctx.goalAppNoticeHost = createGoalStageReadOnlyHost(workspace);
   }
   if (processHost) ctx.goalAppNoticeHost = processHost;
+  if (workHost) ctx.goalWorkHost = workHost;
 
   const port = typeof flags.port === "string" ? Number.parseInt(flags.port, 10) : 7979;
   const host = typeof flags.host === "string" ? flags.host : "127.0.0.1";
@@ -339,6 +353,9 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
 }
 
 async function cmdServe(flags: Record<string, string | boolean>): Promise<void> {
+  if (!flags.http && flags["goal-work-config"] !== undefined) {
+    throw new Error("GOAL_WORK_REQUIRES_HTTP");
+  }
   if (!flags.http && flags["require-existing-oauth-state"] !== undefined) {
     throw new Error("REQUIRE_EXISTING_OAUTH_REQUIRES_HTTP");
   }

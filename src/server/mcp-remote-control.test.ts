@@ -182,6 +182,21 @@ describe("remote MCP session (/mcp, how ChatGPT connects) marks ctx.remote", () 
     await fs.rm(projectRoot, { recursive: true, force: true });
   }, 15_000);
 
+  it("denies basic-scope work and defaults scoped work to unconfigured through HTTP MCP", async () => {
+    // Given an isolated server with no work transport configured.
+    const app = await startApp(makeCtx(stateDir, projectRoot));
+    stop = app.stop;
+    client = await connectMcpClient(app.baseUrl, await getMcpAccessToken(app.baseUrl));
+    // When a basic-scope client requests work status.
+    const denied = await client.callTool({ name: "goal_work_command", arguments: { operation: "status" } });
+    // Then server-verified goal scope is required before any host access.
+    expect(denied.structuredContent).toMatchObject({ code: "APP_GOAL_OAUTH_SCOPE_OR_AUTH_MISSING" });
+    await client.close();
+    client = await connectMcpClient(app.baseUrl, await getMcpAccessToken(app.baseUrl, "chatgpt2codex chatgpt2codex.goal"));
+    const scoped = await client.callTool({ name: "goal_work_command", arguments: { operation: "prepare" } });
+    expect(scoped.structuredContent).toMatchObject({ code: "GOAL_WORK_UNCONFIGURED", effectsIssued: 0 });
+  }, 20_000);
+
   it("rejects project_select preset=control over /mcp, even with the ChatGPT-confirm exposure flag on", async () => {
     process.env.CHATGPT2CODEX_CONTROL_CHATGPT = "1";
     const ctx = makeCtx(stateDir, projectRoot);

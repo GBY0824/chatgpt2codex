@@ -59,7 +59,7 @@ export class GoalAppCommandError extends Error {
   constructor(code: string) { super(code); this.code = code; }
 }
 
-function validateCaller(caller: VerifiedAppCaller | undefined, remote: boolean): void {
+export function validateGoalCaller(caller: VerifiedAppCaller | undefined, remote: boolean): void {
   if (!remote || !caller || typeof caller.clientId !== "string" || !caller.clientId.trim()
       || !Array.isArray(caller.scopes) || !caller.scopes.includes(GOAL_APP_SCOPE)
       || !caller.scopes.includes("chatgpt2codex")
@@ -188,7 +188,7 @@ export async function goalAppCommand(
   remote: boolean,
   onPersistedNotice?: GoalAppNoticeHost,
 ): Promise<Record<string, unknown>> {
-  validateCaller(verifiedAuth, remote);
+  validateGoalCaller(verifiedAuth, remote);
   if (input.action !== "status" && input.action !== "ON" && input.action !== "OFF") {
     throw new GoalAppCommandError("APP_GOAL_ACTION_INVALID");
   }
@@ -209,7 +209,7 @@ export async function goalAppCommand(
   const lockPath = `${filePath}.lock`;
   let written: { action: "ON" | "OFF"; revision: number; commandId: string } | null = null;
   const result = await withGoalIntentClaim(lockPath, async () => {
-    validateCaller(verifiedAuth, remote);
+    validateGoalCaller(verifiedAuth, remote);
     const s = await loadState(filePath);
     if (input.action === "ON" && input.expectedRevision !== s.revision) {
       return { code: "APP_GOAL_REVISION_STALE", requestedMode: s.requestedMode,

@@ -111,6 +111,8 @@ export interface ToolContext {
    * A notice is NOT authority to execute P3 work or provider CHAT attestation.
    * Unconfigured by default on original HTTP/stdio runtime. */
   goalAppNoticeHost?: import("./server/goal-app-intent.js").GoalAppNoticeHost;
+  /** Startup-only fixed native work transport; absent means denied. */
+  goalWorkHost?: import("./server/goal-work-command.js").GoalWorkHost;
 }
 
 // ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@ import { listCommands, runCommand } from "../exec/command-runner.js";
 import { runLocalShell } from "../exec/local-shell.js";
 import { createE2eScreenshotShare } from "../e2e/screenshot-share.js";
 import { goalAppCommand, GOAL_APP_SCHEMES, GoalAppCommandError } from "./goal-app-intent.js";
+import { goalWorkCommand, goalWorkInput, GoalWorkError } from "./goal-work-command.js";
 import { addToolCallProof, TOOL_AVAILABILITY_GATE } from "./tool-proof.js";
 import {
   captureE2eAppScreenshot,
@@ -985,6 +986,31 @@ export function registerTools(server: unknown, ctx: ToolContext): void {
         }
       });
     },
+  );
+
+  registerTool(
+    "goal_work_command",
+    {
+      title: "Prepare, observe or deliver separately signed GOAL work",
+      description: "Requires approved OAuth goal scope and an owner-configured protected native transport. Prepare returns review bytes only. Dispatch accepts only a SHA-256 for an independently signed file in the fixed server inbox. Status observes policy/receipts; recover resumes only an existing checkpoint. Never signs, grants work, installs, or retries an ambiguous start.",
+      annotations: LOCAL_STATE_ANNOTATIONS,
+      _meta: chatGptToolMeta("Checking GOAL work...", "GOAL work checked", { securitySchemes: GOAL_APP_SCHEMES }),
+      inputSchema: goalWorkInput.shape,
+    },
+    async (input, extra) => withErrorMapping(ctx, "goal_work_command", { operation: input.operation }, async () => {
+      try {
+        const value = await goalWorkCommand({ input, auth: extra.authInfo,
+          remote: ctx.remote === true, host: ctx.goalWorkHost });
+        return makeResult(value, `GOAL work: ${String(value.code)}`);
+      } catch (error) {
+        if (error instanceof GoalWorkError || error instanceof GoalAppCommandError) {
+          const uncertain = error instanceof GoalWorkError && error.executionMayHaveStarted;
+          return makeResult({ code: error.code, accepted: false, ...(uncertain ? { executionMayHaveStarted: true } : { effectsIssued: 0 }), retryAuthorized: false },
+            `GOAL work denied: ${error.code}`, true);
+        }
+        throw error;
+      }
+    }),
   );
 
   registerTool(
