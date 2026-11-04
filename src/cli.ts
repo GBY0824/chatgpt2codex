@@ -231,7 +231,13 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
     "goal-process-executable", "goal-process-script", "goal-process-script-sha256",
     "goal-process-key-file", "goal-engine-state-file",
   ] as const;
-  const processHostRequested = processHostKeys.some((key) => flags[key] !== undefined);
+  const nativeGoalReady = flags["goal-process-native-ready"] === true;
+  if ((flags["goal-process-native-ready"] !== undefined && !nativeGoalReady)
+      || (nativeGoalReady && typeof flags["goal-process-executable-sha256"] !== "string")
+      || (!nativeGoalReady && flags["goal-process-executable-sha256"] !== undefined)) {
+    throw new Error("GOAL_PROCESS_NATIVE_EXECUTABLE_PIN_REQUIRED");
+  }
+  const processHostRequested = nativeGoalReady || processHostKeys.some((key) => flags[key] !== undefined);
   if (processHostRequested) {
     if (flags["goal-readonly-stage-check"] !== undefined
         || (flags["isolated-state-dir"] === undefined && !requireExistingOAuthState)
@@ -256,6 +262,9 @@ async function cmdServeHttp(flags: Record<string, string | boolean>): Promise<vo
     ? await createGoalProcessNoticeHost({
       projectRoot: workspace, stateDir,
       executable: flags["goal-process-executable"] as string,
+      ...(nativeGoalReady ? {
+        nativeReady: true, executableSha256: flags["goal-process-executable-sha256"] as string,
+      } : {}),
       script: flags["goal-process-script"] as string,
       scriptSha256: flags["goal-process-script-sha256"] as string,
       bridgeKeyFile: flags["goal-process-key-file"] as string,

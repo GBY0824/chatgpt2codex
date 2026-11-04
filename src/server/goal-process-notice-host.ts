@@ -19,6 +19,8 @@ export interface GoalProcessHostConfig {
   projectRoot: string;
   stateDir: string;
   executable: string;
+  nativeReady?: boolean;
+  executableSha256?: string;
   script: string;
   scriptSha256: string;
   /** Explicit owner-provisioned IPC key, NEVER OAuth bearer or owner token. */
@@ -46,6 +48,9 @@ async function pinnedScript(config: GoalProcessHostConfig): Promise<void> {
       || !engineState.startsWith(path.join(root, "staging") + path.sep)
       || path.resolve(config.bridgeKeyFile) !== path.join(path.resolve(config.stateDir), "goal-process-bridge.key")
       || !/^[a-f0-9]{64}$/.test(config.scriptSha256)
+      || (config.nativeReady !== undefined && typeof config.nativeReady !== "boolean")
+      || (config.nativeReady === true && !/^[a-f0-9]{64}$/.test(config.executableSha256 ?? ""))
+      || (config.nativeReady !== true && config.executableSha256 !== undefined)
       || !script.startsWith(root + path.sep)) {
     throw new Error("GOAL_PROCESS_HOST_OWNER_PIN_REQUIRED");
   }
@@ -67,6 +72,23 @@ async function pinnedScript(config: GoalProcessHostConfig): Promise<void> {
       || createHash("sha256").update(content).digest("hex") !== config.scriptSha256) {
     throw new Error("GOAL_PROCESS_HOST_SOURCE_PIN_MISMATCH");
   }
+  if (config.nativeReady) {
+    if (executableInfo.size > 32 * 1024 * 1024) throw new Error("GOAL_PROCESS_HOST_EXECUTABLE_OVERSIZED");
+    const bytes = await fs.readFile(config.executable);
+    const executableAfter = await fs.lstat(config.executable);
+    if (executableAfter.dev !== executableInfo.dev || executableAfter.ino !== executableInfo.ino
+        || executableAfter.size !== executableInfo.size || executableAfter.mtimeMs !== executableInfo.mtimeMs
+        || createHash("sha256").update(bytes).digest("hex") !== config.executableSha256) {
+      throw new Error("GOAL_PROCESS_HOST_EXECUTABLE_PIN_MISMATCH");
+    }
+  }
+}
+
+export function goalProcessArguments(config: GoalProcessHostConfig): string[] {
+  return config.nativeReady ? ["--notice"] : [
+    config.script, "--engine-state-file", config.engineStateFile,
+    "--original-mcp-state-dir", config.stateDir,
+  ];
 }
 
 async function deliver(
@@ -93,8 +115,7 @@ async function deliver(
   const envelope = JSON.stringify({ schema: 1, body, signature }) + "\n";
   if (Buffer.byteLength(envelope) > 4096) throw new Error("GOAL_PROCESS_HOST_ENVELOPE_TOO_LARGE");
   return await new Promise<GoalAppReadinessCode>((resolve, reject) => {
-    const child = spawn(config.executable, [config.script, "--engine-state-file", config.engineStateFile,
-      "--original-mcp-state-dir", config.stateDir], {
+    const child = spawn(config.executable, goalProcessArguments(config), {
       cwd: config.projectRoot, shell: false,
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
