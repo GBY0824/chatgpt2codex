@@ -1001,3 +1001,20 @@ The linked-path regression uses a disposable docs-directory Junction on
 Windows, avoiding administrator/developer-mode changes. Other platforms retain
 the linked Stage-file scenario. Both must refuse linked input; these tests
 neither follow protected alternate data nor establish research authority.
+
+
+### Fixed-mode native READY host
+
+An owner-reviewed Windows install can select the existing process bridge with
+--goal-process-native-ready and --goal-process-executable-sha256 <sha256>.
+The original process configuration still requires the project, script/source
+pin, IPC key and canonical engine-state path. The native executable receives
+only --notice. Its protected policy selects the matching original MCP state
+and canonical project. The bridge verifies the executable hash at startup and
+before every event. A pin failure preserves a committed OFF and reports an
+unverified notice.
+
+These are startup settings. The native installation, existing OAuth-state
+continuity and operating cutover require their separately reviewed procedure.
+The notice only queues authenticated intent. A different owner-signed Windows
+work request is required before research.
