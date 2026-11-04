@@ -23,6 +23,26 @@ describe("OAuth-scoped APP intent — NOT ChatGPT provider turn or research auth
       researchExecutionAuthorized: false, originalChatTurnAttested: false, effectsIssued: 0 });
     expect(await call(d, "status")).toMatchObject({ requestedMode: "ON", revision: 1 });
   });
+  it("waits for a short payload claim before persisting OFF", async () => {
+    const d = await dir();
+    await call(d, "ON", 0);
+    let off: Promise<Record<string, unknown>> | undefined;
+    await withGoalIntentClaim(path.join(d, "goal-app-command-intent.json.lock"), async () => {
+      off = call(d, "OFF");
+      await new Promise<void>(resolve => setTimeout(resolve, 60));
+      expect(await call(d, "status")).toMatchObject({ requestedMode: "ON", revision: 1 });
+    });
+    expect(await off).toMatchObject({ requestedMode: "OFF", revision: 2 });
+  });
+  it("does not remove or replay a claim that outlasts the OFF wait", async () => {
+    const d = await dir();
+    await call(d, "ON", 0);
+    const lock = path.join(d, "goal-app-command-intent.json.lock");
+    await writeFile(lock, "foreign marker", { flag: "wx" });
+    await expect(call(d, "OFF")).rejects.toMatchObject({ code: "APP_GOAL_LOCK_BUSY_NO_REPLAY" });
+    expect(await readFile(lock, "utf8")).toBe("foreign marker");
+    expect(await call(d, "status")).toMatchObject({ requestedMode: "ON", revision: 1 });
+  });
   it("OFF fences old ON across restart", async () => {
     const d = await dir();
     await call(d, "ON", 0); await call(d, "OFF");

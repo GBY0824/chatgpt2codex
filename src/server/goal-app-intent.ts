@@ -142,11 +142,22 @@ async function saveState(filename: string, state: IntentState): Promise<void> {
  * shared-state isolation remains mandatory on any eventual live cutover.
  */
 export async function withGoalIntentClaim<T>(
-  lockPath: string, fn: () => Promise<T>,
+  lockPath: string, fn: () => Promise<T>, waitMs = 0,
 ): Promise<T> {
+  const deadline = performance.now() + waitMs;
   let lock: import("node:fs/promises").FileHandle;
-  try { lock = await fs.open(lockPath, "wx", 0o600); }
-  catch { throw new GoalAppCommandError("APP_GOAL_LOCK_BUSY_NO_REPLAY"); }
+  for (;;) {
+    try {
+      lock = await fs.open(lockPath, "wx", 0o600);
+      break;
+    } catch (error) {
+      const remaining = deadline - performance.now();
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST" || remaining <= 0) {
+        throw new GoalAppCommandError("APP_GOAL_LOCK_BUSY_NO_REPLAY");
+      }
+      await new Promise<void>(resolve => setTimeout(resolve, Math.min(25, remaining)));
+    }
+  }
   const marker = JSON.stringify({
     schema: 1, pid: process.pid, nonce: randomUUID(),
   });
@@ -198,6 +209,7 @@ export async function goalAppCommand(
   const lockPath = `${filePath}.lock`;
   let written: { action: "ON" | "OFF"; revision: number; commandId: string } | null = null;
   const result = await withGoalIntentClaim(lockPath, async () => {
+    validateCaller(verifiedAuth, remote);
     const s = await loadState(filePath);
     if (input.action === "ON" && input.expectedRevision !== s.revision) {
       return { code: "APP_GOAL_REVISION_STALE", requestedMode: s.requestedMode,
@@ -226,7 +238,7 @@ export async function goalAppCommand(
     return { code: "APP_GOAL_INTENT_RECORDED_ONLY", requestedMode: next.requestedMode,
       revision: next.revision, researchExecutionAuthorized: false,
       originalChatTurnAttested: false, effectsIssued: 0 };
-  });
+  }, input.action === "OFF" ? 1000 : 0);
   if (!written || !onPersistedNotice) return result;
   // Notify only after the durable state write AND lock release. GOAL OFF
   // must not wait for an executing ON host callback to release the lock.
