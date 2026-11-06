@@ -143,7 +143,10 @@ export function composeGoalWorkHost(environment: WorkHostEnvironment): GoalWorkH
       const prelude = goalWorkPrelude(environment.config);
       switch (input.operation) {
         case "prepare": {
-          const raw = await environment.run(prelude + `& ${psLiteral(GOAL_WORK_PATHS.native)} --prepare-owner-request\nif($LASTEXITCODE -ne 0){throw 'GOAL_WORK_PREPARE_DENIED'}` + goalWorkFinally);
+          // Preparation only emits owner review bytes; it never signs or starts work.
+          // Like status, the native child requires explicit inheritable stdio
+          // handles and the nested policy verifier can outlast 12 seconds.
+          const raw = await environment.run(prelude + goalWorkPolicyProbe(GOAL_WORK_PATHS.native, "--prepare-owner-request") + goalWorkFinally, { timeoutMs: 30000 });
           return { ...decode(raw, prepared), effectsIssued: 0, signatureIssued: false, retryAuthorized: false };
         }
         case "status": {
