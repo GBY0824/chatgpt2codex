@@ -1,0 +1,33 @@
+name: GOAL work status diagnostics isolated source review
+on:
+  push:
+    branches:
+      - fix/goal-work-safe-failure-codes-20261107
+permissions:
+  contents: read
+jobs:
+  source-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run src/server/goal-work-powershell.test.ts src/server/goal-work-host.test.ts
+      - run: npm run build
+  source-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run src/server/goal-work-powershell.test.ts src/server/goal-work-host.test.ts src/server/goal-work-acl.test.ts
