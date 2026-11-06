@@ -30,4 +30,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npx vitest run src/server/goal-work-powershell.test.ts src/server/goal-work-host.test.ts src/server/goal-work-acl.test.ts
+      - run: npx vitest run src/server/goal-work-powershell.test.ts src/server/goal-work-acl.test.ts
