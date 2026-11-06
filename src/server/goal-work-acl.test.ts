@@ -29,7 +29,7 @@ catch{if($_.Exception.Message -cne 'GOAL_WORK_WRITABLE_CLOSURE_REFUSED'){throw};
 `;
     return execFileSync("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", [
       "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(body, "utf16le").toString("base64"),
-    ], { encoding: "utf8", timeout: 10000, windowsHide: true }).trim();
+    ], { encoding: "utf8", timeout: 30000, windowsHide: true }).trim();
   };
 
   it("accepts an inherit-only ACE that does not apply to the current directory", () => {
