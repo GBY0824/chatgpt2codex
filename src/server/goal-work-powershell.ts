@@ -79,8 +79,8 @@ export function classifyGoalPowerShellFailure(error: Error): string {
   return "GOAL_WORK_HOST_UNCONFIRMED_PRESERVE_NO_REPLAY";
 }
 
-export type GoalPowerShellRunner = (body: string) => Promise<string>;
-export const runGoalPowerShell: GoalPowerShellRunner = async (body) => {
+export type GoalPowerShellRunner = (body: string, options?: Readonly<{ timeoutMs: 12000 | 30000 }>) => Promise<string>;
+export const runGoalPowerShell: GoalPowerShellRunner = async (body, options) => {
   // No inherited OAuth/LLM/CLR-extension environment. Fixed OS module path.
   const environment: NodeJS.ProcessEnv = {
     SystemRoot: "C:\\Windows", WINDIR: "C:\\Windows", PATH: "C:\\Windows\\System32",
@@ -91,7 +91,7 @@ export const runGoalPowerShell: GoalPowerShellRunner = async (body) => {
     const result = await execute(GOAL_WORK_PATHS.powershell, [
       "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand",
       Buffer.from(body, "utf16le").toString("base64"),
-    ], { shell: false, windowsHide: true, env: environment, timeout: 12000, maxBuffer: 65536 });
+    ], { shell: false, windowsHide: true, env: environment, timeout: options?.timeoutMs ?? 12000, maxBuffer: 65536 });
     return result.stdout;
   } catch (error) {
     if (!(error instanceof Error)) throw error;
