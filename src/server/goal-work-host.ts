@@ -147,7 +147,10 @@ export function composeGoalWorkHost(environment: WorkHostEnvironment): GoalWorkH
           return { ...decode(raw, prepared), effectsIssued: 0, signatureIssued: false, retryAuthorized: false };
         }
         case "status": {
-          const raw = await environment.run(prelude + `& ${psLiteral(GOAL_WORK_PATHS.native)} --check-policy\nif($LASTEXITCODE -ne 0){throw 'GOAL_WORK_POLICY_DENIED'}` + goalWorkFinally);
+          // This strictly read-only policy check starts a nested bounded PowerShell
+          // verifier. Grant it a separate finite budget; dispatch and recover
+          // retain their original 12-second no-replay execution budget.
+          const raw = await environment.run(prelude + `& ${psLiteral(GOAL_WORK_PATHS.native)} --check-policy\nif($LASTEXITCODE -ne 0){throw 'GOAL_WORK_POLICY_DENIED'}` + goalWorkFinally, { timeoutMs: 30000 });
           const verified = decode(raw, policy);
           const receipts = input.requestSha256 ? await observe(attempts, input.requestSha256) : [];
           const recoveryReceipts: Record<string, unknown>[] = [];
