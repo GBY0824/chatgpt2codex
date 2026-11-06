@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - fix/goal-work-safe-failure-codes-20261107
+      - fix/goal-work-prepare-stdio-20261107
 permissions:
   contents: read
 jobs:

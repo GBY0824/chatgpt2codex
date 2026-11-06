@@ -85,6 +85,34 @@ describe("fixed GOAL work transport with disposable requests and process stubs",
     expect(calls[0]).toContain("--prepare-owner-request");
   });
 
+  it("prepares only owner review bytes with explicit child standard handles and bounded status budget", async () => {
+    const observed: Array<{ body: string; timeoutMs?: number }> = [];
+    const host = composeGoalWorkHost({
+      config, stateDir: state,
+      verify: async () => undefined,
+      run: async (body, options) => {
+        observed.push({ body, timeoutMs: options?.timeoutMs });
+        return JSON.stringify({
+          code: "GOAL_OWNER_WORK_SIGNATURE_REQUIRED",
+          opr: "OPR-fixture", job_id: "fixture-job",
+          outputs: ["fixture.txt"], launch_args: ["fixture"],
+          signing_bytes_base64: "Zml4dHVyZQ==",
+        });
+      },
+    });
+    const result = await goalWorkCommand({ input: { operation: "prepare" }, auth, remote: true, host });
+    expect(result).toMatchObject({ code: "GOAL_OWNER_WORK_SIGNATURE_REQUIRED",
+      signatureIssued: false, effectsIssued: 0, retryAuthorized: false });
+    expect(observed).toHaveLength(1);
+    expect(observed[0]?.timeoutMs).toBe(30000);
+    expect(observed[0]?.body).toContain("--prepare-owner-request");
+    expect(observed[0]?.body).toContain("RedirectStandardInput=$true");
+    expect(observed[0]?.body).toContain("RedirectStandardOutput=$true");
+    expect(observed[0]?.body).toContain("RedirectStandardError=$true");
+    expect(observed[0]?.body).toContain("$probe.StandardInput.Close()");
+    expect(observed[0]?.body).not.toContain("Start-GoalReadyHiddenSupervisor");
+  });
+
   it("prepares an exact bounded sequence without signing or dispatching", async () => {
     const steps = ["first", "next"].map(job_id => ({ job_id, outputs: [`docs/${job_id}.md`],
       launch_args: ["fixture", job_id], signing_bytes_base64: "Zml4dHVyZQ==" }));
