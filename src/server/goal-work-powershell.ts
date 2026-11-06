@@ -41,6 +41,33 @@ foreach($p in @($c,(Join-Path $c 'tools'), 'C:\\Program Files\\FreqtradeGoalRead
 
 export const goalWorkFinally = "\n}finally{foreach($s in $held){$s.Dispose()}}";
 
+/** Give the fixed native policy probe valid, inheritable standard handles in a headless session. */
+export function goalWorkPolicyProbe(executable: string, argumentsString: string): string {
+  return `
+$probeInfo=[Diagnostics.ProcessStartInfo]::new()
+$probeInfo.FileName=${psLiteral(executable)}
+$probeInfo.Arguments=${psLiteral(argumentsString)}
+$probeInfo.UseShellExecute=$false
+$probeInfo.CreateNoWindow=$true
+$probeInfo.RedirectStandardInput=$true
+$probeInfo.RedirectStandardOutput=$true
+$probeInfo.RedirectStandardError=$true
+$probe=[Diagnostics.Process]::Start($probeInfo)
+try {
+  $probe.StandardInput.Close()
+  $probeOutput=$probe.StandardOutput.ReadToEndAsync()
+  $probeError=$probe.StandardError.ReadToEndAsync()
+  if(-not $probe.WaitForExit(27000)) {
+    $probe.Kill()
+    throw 'GOAL_WORK_POLICY_TIMEOUT'
+  }
+  if($probe.ExitCode -ne 0){throw 'GOAL_WORK_POLICY_DENIED'}
+  if(-not $probeOutput.Wait(250) -or -not $probeError.Wait(250)){throw 'GOAL_WORK_POLICY_STREAM_UNCONFIRMED'}
+  [Console]::Out.Write($probeOutput.Result)
+} finally { $probe.Dispose() }
+`;
+}
+
 /** Extract definitions from pinned scripts only; never execute dispatcher top level. */
 export function goalWorkFunctions(): string {
   return `

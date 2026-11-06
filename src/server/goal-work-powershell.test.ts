@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { classifyGoalPowerShellFailure } from "./goal-work-powershell.js";
+import { classifyGoalPowerShellFailure, goalWorkPolicyProbe, runGoalPowerShell } from "./goal-work-powershell.js";
+
+describe.skipIf(process.platform !== "win32")("read-only policy subprocess transport", () => {
+  it("captures stdout from a console child while keeping stderr private", async () => {
+    const script = goalWorkPolicyProbe("C:\\Windows\\System32\\cmd.exe", "/d /c echo fixture-policy & echo private >&2");
+    await expect(runGoalPowerShell(script, { timeoutMs: 30000 })).resolves.toMatch(/^fixture-policy\s*$/);
+  });
+
+  it("fails closed when a child prints stdout and exits nonzero", async () => {
+    const script = goalWorkPolicyProbe("C:\\Windows\\System32\\cmd.exe", "/d /c echo untrusted & exit /b 2");
+    await expect(runGoalPowerShell(script, { timeoutMs: 30000 })).rejects.toMatchObject({
+      code: "GOAL_WORK_HOST_CHILD_NONZERO_PRESERVE_NO_REPLAY",
+      executionMayHaveStarted: true,
+    });
+  });
+});
 
 const withPrivateOutput = (code: string | number | undefined, other: Record<string, unknown> = {}): Error =>
   Object.assign(new Error("PRIVATE_PATH_OR_TOKEN_MUST_NOT_LEAK"), {
