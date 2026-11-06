@@ -23,7 +23,9 @@ function Assert-Protected([string]$p,[bool]$sealed=$true){
  $sid=[Security.Principal.SecurityIdentifier];$a=Get-Acl -LiteralPath $p
  if(($sealed -and -not $a.AreAccessRulesProtected) -or $a.GetOwner($sid).Value -notin $trusted){throw 'GOAL_WORK_PROTECTED_ACL_REQUIRED'}
  foreach($r in $a.GetAccessRules($true,$true,$sid)){
-  if($r.AccessControlType -eq 'Allow' -and (([int64]$r.FileSystemRights) -band 0x500D0156) -ne 0 -and $r.IdentityReference.Value -notin $trusted){throw 'GOAL_WORK_WRITABLE_CLOSURE_REFUSED'}
+  if($r.AccessControlType -eq 'Allow' -and
+     ($r.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -eq 0 -and
+     (([int64]$r.FileSystemRights) -band 0x500D0156) -ne 0 -and $r.IdentityReference.Value -notin $trusted){throw 'GOAL_WORK_WRITABLE_CLOSURE_REFUSED'}
  }
 }
 try{
