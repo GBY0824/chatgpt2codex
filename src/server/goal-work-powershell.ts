@@ -55,6 +55,30 @@ foreach($p in @(${psLiteral(GOAL_WORK_PATHS.dispatcher)},${psLiteral(GOAL_WORK_P
 `;
 }
 
+/** Classify child-process failures using Node-owned metadata only.
+ * Never return stderr, stdout, command line, environment, exception text or paths.
+ * All categories remain fail-closed and do not permit an ambiguous work replay.
+ */
+export function classifyGoalPowerShellFailure(error: Error): string {
+  const child = error as Error & { code?: unknown; killed?: unknown; signal?: unknown };
+  if (child.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
+    return "GOAL_WORK_HOST_OUTPUT_LIMIT_PRESERVE_NO_REPLAY";
+  }
+  if (child.killed === true || child.code === "ETIMEDOUT") {
+    return "GOAL_WORK_HOST_STOPPED_OR_TIMEOUT_PRESERVE_NO_REPLAY";
+  }
+  if (child.code === "ENOENT" || child.code === "EACCES" || child.code === "EPERM") {
+    return "GOAL_WORK_HOST_SPAWN_REJECTED_PRESERVE_NO_REPLAY";
+  }
+  if (typeof child.code === "number") {
+    return "GOAL_WORK_HOST_CHILD_NONZERO_PRESERVE_NO_REPLAY";
+  }
+  if (typeof child.signal === "string" && child.signal.length > 0) {
+    return "GOAL_WORK_HOST_SIGNALLED_PRESERVE_NO_REPLAY";
+  }
+  return "GOAL_WORK_HOST_UNCONFIRMED_PRESERVE_NO_REPLAY";
+}
+
 export type GoalPowerShellRunner = (body: string) => Promise<string>;
 export const runGoalPowerShell: GoalPowerShellRunner = async (body) => {
   // No inherited OAuth/LLM/CLR-extension environment. Fixed OS module path.
@@ -72,6 +96,6 @@ export const runGoalPowerShell: GoalPowerShellRunner = async (body) => {
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     // Never include child output, request/signature bytes or local paths.
-    throw new GoalWorkError("GOAL_WORK_HOST_UNCONFIRMED_PRESERVE_NO_REPLAY", true);
+    throw new GoalWorkError(classifyGoalPowerShellFailure(error), true);
   }
 };
