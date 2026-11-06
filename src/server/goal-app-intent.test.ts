@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { GoalAppCommandError, goalAppCommand, withGoalIntentClaim, type VerifiedAppCaller, type PersistedGoalAppNotice } from "./goal-app-intent.js";
@@ -10,7 +10,15 @@ const auth: VerifiedAppCaller = {
   resource: new URL("https://example.test/mcp"),
 };
 const dirs: string[] = [];
-afterEach(async () => { for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true }); });
+afterEach(async () => {
+  for (const d of dirs.splice(0)) {
+    const target = path.resolve(d);
+    if (path.dirname(target) !== path.resolve(tmpdir()) || !path.basename(target).startsWith("goal-app-")) {
+      throw new Error("Unsafe APP intent fixture cleanup");
+    }
+    await rm(target, { recursive: true, force: true });
+  }
+});
 async function dir(): Promise<string> { const d = await mkdtemp(path.join(tmpdir(), "goal-app-")); dirs.push(d); return d; }
 const call = (d: string, action: "ON" | "OFF" | "status", expectedRevision?: number,
               caller: VerifiedAppCaller | undefined = auth, remote = true) =>
@@ -200,7 +208,10 @@ describe("OAuth-scoped APP intent — NOT ChatGPT provider turn or research auth
     const marker = path.join(d, "synthetic-intent.lock");
     const foreign = "synthetic-replaced-marker-not-owner";
     await expect(withGoalIntentClaim(marker, async () => {
-      await rm(marker);
+      // Windows keeps an unlinked open file delete-pending and rejects the
+      // replacement write. Renaming actually creates the foreign-inode case
+      // on both Windows and POSIX instead of failing before it is exercised.
+      await rename(marker, path.join(d, "displaced-synthetic-intent.lock"));
       await writeFile(marker, foreign, "utf8");
     })).rejects.toMatchObject({ code: "APP_GOAL_LOCK_OWNERSHIP_LOST" });
     expect(await readFile(marker, "utf8")).toBe(foreign);
