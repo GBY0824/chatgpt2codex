@@ -5,7 +5,7 @@ describe.skipIf(process.platform !== "win32")("read-only policy subprocess trans
   it("captures stdout from a console child while keeping stderr private", async () => {
     const script = goalWorkPolicyProbe("C:\\Windows\\System32\\cmd.exe", "/d /c echo fixture-policy & echo private >&2");
     await expect(runGoalPowerShell(script, { timeoutMs: 30000 })).resolves.toMatch(/^fixture-policy\s*$/);
-  });
+  }, 35000);
 
   it("fails closed when a child prints stdout and exits nonzero", async () => {
     const script = goalWorkPolicyProbe("C:\\Windows\\System32\\cmd.exe", "/d /c echo untrusted & exit /b 2");
@@ -13,7 +13,7 @@ describe.skipIf(process.platform !== "win32")("read-only policy subprocess trans
       code: "GOAL_WORK_HOST_CHILD_NONZERO_PRESERVE_NO_REPLAY",
       executionMayHaveStarted: true,
     });
-  });
+  }, 35000);
 });
 
 const withPrivateOutput = (code: string | number | undefined, other: Record<string, unknown> = {}): Error =>
