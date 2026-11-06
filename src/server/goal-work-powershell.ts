@@ -41,6 +41,33 @@ foreach($p in @($c,(Join-Path $c 'tools'), 'C:\\Program Files\\FreqtradeGoalRead
 
 export const goalWorkFinally = "\n}finally{foreach($s in $held){$s.Dispose()}}";
 
+/** Give the fixed native policy probe valid, inheritable standard handles in a headless session. */
+export function goalWorkPolicyProbe(executable: string, argumentsString: string): string {
+  return `
+$probeInfo=[Diagnostics.ProcessStartInfo]::new()
+$probeInfo.FileName=${psLiteral(executable)}
+$probeInfo.Arguments=${psLiteral(argumentsString)}
+$probeInfo.UseShellExecute=$false
+$probeInfo.CreateNoWindow=$true
+$probeInfo.RedirectStandardInput=$true
+$probeInfo.RedirectStandardOutput=$true
+$probeInfo.RedirectStandardError=$true
+$probe=[Diagnostics.Process]::Start($probeInfo)
+try {
+  $probe.StandardInput.Close()
+  $probeOutput=$probe.StandardOutput.ReadToEndAsync()
+  $probeError=$probe.StandardError.ReadToEndAsync()
+  if(-not $probe.WaitForExit(27000)) {
+    $probe.Kill()
+    throw 'GOAL_WORK_POLICY_TIMEOUT'
+  }
+  if($probe.ExitCode -ne 0){throw 'GOAL_WORK_POLICY_DENIED'}
+  if(-not $probeOutput.Wait(250) -or -not $probeError.Wait(250)){throw 'GOAL_WORK_POLICY_STREAM_UNCONFIRMED'}
+  [Console]::Out.Write($probeOutput.Result)
+} finally { $probe.Dispose() }
+`;
+}
+
 /** Extract definitions from pinned scripts only; never execute dispatcher top level. */
 export function goalWorkFunctions(): string {
   return `
@@ -55,8 +82,32 @@ foreach($p in @(${psLiteral(GOAL_WORK_PATHS.dispatcher)},${psLiteral(GOAL_WORK_P
 `;
 }
 
-export type GoalPowerShellRunner = (body: string) => Promise<string>;
-export const runGoalPowerShell: GoalPowerShellRunner = async (body) => {
+/** Classify child-process failures using Node-owned metadata only.
+ * Never return stderr, stdout, command line, environment, exception text or paths.
+ * All categories remain fail-closed and do not permit an ambiguous work replay.
+ */
+export function classifyGoalPowerShellFailure(error: Error): string {
+  const child = error as Error & { code?: unknown; killed?: unknown; signal?: unknown };
+  if (child.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
+    return "GOAL_WORK_HOST_OUTPUT_LIMIT_PRESERVE_NO_REPLAY";
+  }
+  if (child.killed === true || child.code === "ETIMEDOUT") {
+    return "GOAL_WORK_HOST_STOPPED_OR_TIMEOUT_PRESERVE_NO_REPLAY";
+  }
+  if (child.code === "ENOENT" || child.code === "EACCES" || child.code === "EPERM") {
+    return "GOAL_WORK_HOST_SPAWN_REJECTED_PRESERVE_NO_REPLAY";
+  }
+  if (typeof child.code === "number") {
+    return "GOAL_WORK_HOST_CHILD_NONZERO_PRESERVE_NO_REPLAY";
+  }
+  if (typeof child.signal === "string" && child.signal.length > 0) {
+    return "GOAL_WORK_HOST_SIGNALLED_PRESERVE_NO_REPLAY";
+  }
+  return "GOAL_WORK_HOST_UNCONFIRMED_PRESERVE_NO_REPLAY";
+}
+
+export type GoalPowerShellRunner = (body: string, options?: Readonly<{ timeoutMs: 12000 | 30000 }>) => Promise<string>;
+export const runGoalPowerShell: GoalPowerShellRunner = async (body, options) => {
   // No inherited OAuth/LLM/CLR-extension environment. Fixed OS module path.
   const environment: NodeJS.ProcessEnv = {
     SystemRoot: "C:\\Windows", WINDIR: "C:\\Windows", PATH: "C:\\Windows\\System32",
@@ -67,11 +118,11 @@ export const runGoalPowerShell: GoalPowerShellRunner = async (body) => {
     const result = await execute(GOAL_WORK_PATHS.powershell, [
       "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand",
       Buffer.from(body, "utf16le").toString("base64"),
-    ], { shell: false, windowsHide: true, env: environment, timeout: 12000, maxBuffer: 65536 });
+    ], { shell: false, windowsHide: true, env: environment, timeout: options?.timeoutMs ?? 12000, maxBuffer: 65536 });
     return result.stdout;
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     // Never include child output, request/signature bytes or local paths.
-    throw new GoalWorkError("GOAL_WORK_HOST_UNCONFIRMED_PRESERVE_NO_REPLAY", true);
+    throw new GoalWorkError(classifyGoalPowerShellFailure(error), true);
   }
 };

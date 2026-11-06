@@ -37,6 +37,21 @@ describe("fixed GOAL work transport with disposable requests and process stubs",
   });
   const hostFor = (stateDir: string, run: (body: string) => Promise<string>) => composeGoalWorkHost({ config, stateDir, run, verify: async () => undefined });
 
+  it("assigns a bounded 30-second budget only to read-only policy status", async () => {
+    const optionsSeen: Array<number | undefined> = [];
+    const host = composeGoalWorkHost({
+      config, stateDir: state,
+      verify: async () => undefined,
+      run: async (_body, options) => {
+        optionsSeen.push(options?.timeoutMs);
+        return JSON.stringify({ code: "GOAL_READY_POLICY_VERIFIED", signer_fingerprint: "SHA256:" + "A".repeat(43) });
+      },
+    });
+    const result = await host({ operation: "status" });
+    expect(result).toMatchObject({ code: "GOAL_WORK_STATUS_OBSERVED", effectsIssued: 0, retryAuthorized: false });
+    expect(optionsSeen).toEqual([30000]);
+  });
+
   it("requires server goal auth before invoking even a configured host", async () => {
     // Given a malicious basic client supplying an identity in the input.
     const host = hostFor(state, async body => { calls.push(body); return "{}"; });

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { gzipSync } from "node:zlib";
 import { GoalWorkError, type GoalWorkHost, type GoalWorkInput } from "./goal-work-command.js";
 import { assertGoalWorkPath, readGoalWorkFile, verifyGoalWorkClosure, GOAL_WORK_PATHS, type GoalWorkConfig } from "./goal-work-pins.js";
-import { goalWorkPrelude, goalWorkFinally, goalWorkFunctions, psLiteral, runGoalPowerShell, type GoalPowerShellRunner } from "./goal-work-powershell.js";
+import { goalWorkPrelude, goalWorkFinally, goalWorkFunctions, goalWorkPolicyProbe, psLiteral, runGoalPowerShell, type GoalPowerShellRunner } from "./goal-work-powershell.js";
 
 const code = z.string().regex(/^[A-Z0-9_]{1,128}$/);
 const ack = z.object({ code }).strict();
@@ -147,7 +147,10 @@ export function composeGoalWorkHost(environment: WorkHostEnvironment): GoalWorkH
           return { ...decode(raw, prepared), effectsIssued: 0, signatureIssued: false, retryAuthorized: false };
         }
         case "status": {
-          const raw = await environment.run(prelude + `& ${psLiteral(GOAL_WORK_PATHS.native)} --check-policy\nif($LASTEXITCODE -ne 0){throw 'GOAL_WORK_POLICY_DENIED'}` + goalWorkFinally);
+          // This strictly read-only policy check starts a nested bounded PowerShell
+          // verifier. Grant it a separate finite budget; dispatch and recover
+          // retain their original 12-second no-replay execution budget.
+          const raw = await environment.run(prelude + goalWorkPolicyProbe(GOAL_WORK_PATHS.native, "--check-policy") + goalWorkFinally, { timeoutMs: 30000 });
           const verified = decode(raw, policy);
           const receipts = input.requestSha256 ? await observe(attempts, input.requestSha256) : [];
           const recoveryReceipts: Record<string, unknown>[] = [];
